@@ -5,19 +5,32 @@
 # Add inputs and outputs from these tool invocations to the build variables 
 CPP_SRCS += \
 ../src/CommHelper.cpp \
+../src/MapDealer.cpp \
 ../src/TCPClient.cpp \
+../src/astar_algoirthm.cpp \
 ../src/main.cpp \
 ../src/unit.cpp 
 
+C_SRCS += \
+../src/inifile.c 
+
 OBJS += \
 ./src/CommHelper.o \
+./src/MapDealer.o \
 ./src/TCPClient.o \
+./src/astar_algoirthm.o \
+./src/inifile.o \
 ./src/main.o \
 ./src/unit.o 
 
+C_DEPS += \
+./src/inifile.d 
+
 CPP_DEPS += \
 ./src/CommHelper.d \
+./src/MapDealer.d \
 ./src/TCPClient.d \
+./src/astar_algoirthm.d \
 ./src/main.d \
 ./src/unit.d 
 
@@ -27,6 +40,13 @@ src/%.o: ../src/%.cpp
 	@echo 'Building file: $<'
 	@echo 'Invoking: GCC C++ Compiler'
 	g++ -O0 -g3 -Wall -c -fmessage-length=0 -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@)" -o "$@" "$<"
+	@echo 'Finished building: $<'
+	@echo ' '
+
+src/%.o: ../src/%.c
+	@echo 'Building file: $<'
+	@echo 'Invoking: GCC C Compiler'
+	gcc -O0 -g3 -Wall -c -fmessage-length=0 -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@)" -o "$@" "$<"
 	@echo 'Finished building: $<'
 	@echo ' '
 

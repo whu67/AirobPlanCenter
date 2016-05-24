@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <sstream>
+#include <fstream>
 #include <signal.h>
 #include <sys/stat.h>
 #include <pthread.h>
@@ -24,20 +25,30 @@
 #include "unit.h"
 #include "TCPClient.h"
 #include "CommHelper.h"
-
+#include "MapDealer.h"
+#include "inifile.h"
 
 using namespace std;
+
 
 class MainProgram
 {
  public:
 	TCPClient m_tcpClient;
 	CommHelper m_CommHelper;
+//	CommHelper m_CommSender;
+	MapDealer m_MapDealer;
 
 	int RemotePort;
 	char RemoteHost[20];
+
+	int ModifyPort;
+	char ModifyHost[20];
+
 	int SerSpeed ;
 	char Serdevice[10];
+	char SendDevice[10];
+
  public:
 	MainProgram();
 	~MainProgram();

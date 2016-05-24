@@ -24,12 +24,53 @@ int MainProgram::init()
 
 int MainProgram::start()
 {
+	//begin to read config.ini
+	if(!read_profile_string("MapHost", "IP", RemoteHost, 20, "192.168.199.23", "./config.ini"))
+	{
+		printf("Read ini file failed!, Programme exit!\n");
+		return -1;
+	}
+	else
+	{
+		printf("Map Host = %s \n", RemoteHost);
+	}
+	RemotePort = read_profile_int("MapPort", "PORT", 10001, "./config.ini");
+	printf("Map Port = %d \n", RemotePort);
 
-	//
-	//strcpy(m_NetworkConfig.wifi_ssid, "TESTTEST");
-	//strcpy(m_NetworkConfig.wifi_key, "87654321");
-	//m_NetworkConfig.uci_wifi_config_set();
-	//
+	if(!read_profile_string("ModifyHost", "IP", ModifyHost, 20, "192.168.199.23", "./config.ini"))
+	{
+		printf("Read ini file failed!, Programme exit!\n");
+		return -1;
+	}
+	else
+	{
+		printf("Modify Host = %s \n", ModifyHost);
+	}
+	ModifyPort = read_profile_int("ModifyPort", "PORT", 10001, "./config.ini");
+	printf("Map Port = %d \n", ModifyPort);
+
+	if(!read_profile_string("Device", "Serial", Serdevice, 20, "/dev/ttyS1", "./config.ini"))
+	{
+		printf("Read ini file failed!, Programme exit!\n");
+		return -1;
+	}
+	else
+	{
+		printf("Serial Device = %s \n", Serdevice);
+	}
+
+//	if(!read_profile_string("SendDevice", "SendSerial", SendDevice, 20, "/dev/ttyS1", "./config.ini"))
+//	{
+//		printf("Read ini file failed!, Programme exit!\n");
+//		return -1;
+//	}
+//	else
+//	{
+//		printf("Serial Device = %s \n", Serdevice);
+//	}
+
+	SerSpeed = read_profile_int("Speed", "SerSpeed", 115200, "./config.ini");
+	//end to read config.ini
 
 	if (m_CommHelper.Open(this, Serdevice, SerSpeed) < 0)
 	{
@@ -41,6 +82,16 @@ int MainProgram::start()
 		printf("Comm Speed is %d.\n", m_CommHelper.Speed);
 	}
 
+//	if(m_CommSender.Open(this, SendDevice, SerSpeed) < 0)
+//	{
+//		printf("Device send device failed.\n");
+//		exit(1);
+//	}
+//	else
+//	{
+//		printf("Comm Speed is %d.\n", m_CommSender.Speed);
+//	}
+
 	//设置m_tcpClient属性
 	strcpy(m_tcpClient.m_remoteHost, RemoteHost); //
 
@@ -49,12 +100,24 @@ int MainProgram::start()
 
 	if (m_tcpClient.ConnectServer())
 	{
-		fprintf(stdout, "TCP建立连接成功!\n");
+		fprintf(stdout, "TCP connected successfully!\n");
 	}
 	else
 	{
-		fprintf(stdout, "TCP建立连接失败!.\n");
+		fprintf(stdout, "TCP connected failed!.\n");
 		//return -1;
+	}
+
+	m_MapDealer.open(this);
+	m_MapDealer.init();
+	if(m_MapDealer.CreateUpdateMapandPlanThread())
+	{
+		fprintf(stdout, "Map Update and Road Plan thread create successfully!\n");
+	}
+	else
+	{
+		fprintf(stdout, "Map Update and Road Plan thread create failed!\n");
+		exit(1);
 	}
 
 	return 0;
@@ -221,6 +284,25 @@ int main(int argc, char *argv[])
 				m_MainProgram.m_CommHelper.ExtractData(SendBuf, count);
 			}
 				break;
+			case 'p':
+			case 'P':
+			{
+				//output Fix array to /home/map.txt
+				unsigned char tmpoutfix[MAX_MAP_GRID][MAX_MAP_GRID];
+				memcpy(tmpoutfix, m_MainProgram.m_MapDealer.Fix, MAX_MAP_GRID*MAX_MAP_GRID);
+				ofstream outputstr;
+				outputstr.open("//home/map.txt", ios::out);
+				for(int i  = 0; i < MAX_MAP_GRID; i++)
+				{
+					for(int t = 0; t < MAX_MAP_GRID; t++)
+					{
+						outputstr<<(int)tmpoutfix[i][t]<<",";
+					}
+					outputstr<<endl;
+				}
+				outputstr.close();
+				fprintf(stdout, "Dump map data to  /home/map.txt done!");
+			}
 			default:
 				fprintf(stdout, "命令未知!请输入 h | H 查看帮助.\n");
 				break;

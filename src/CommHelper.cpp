@@ -9,8 +9,8 @@
 
 CommHelper::CommHelper()
 {
-	strcpy(dev, "/dev/");
-	Speed = 115200;
+//	strcpy(dev, "/dev/");
+//	Speed = 115200;
 }
 
 CommHelper::~CommHelper()
@@ -22,7 +22,6 @@ CommHelper::~CommHelper()
 
 int CommHelper::Close()
 {
-
 	return 1;
 }
 
@@ -111,13 +110,96 @@ int CommHelper::init_dev()
 	return 1;
 }
 
+int CommHelper::StripCMD(const char * data, int data_len)
+{
+	unsigned char cmdbuff[2];
+
+	if(10 != data_len)
+		return -1;
+
+	cmdbuff[0] = data[0];
+	cmdbuff[1] = data[1];
+
+	if((0xf1 == cmdbuff[0])&&(0xf1 == cmdbuff[1]))
+	{
+		return 1;
+	}
+	else if((0xF2 == cmdbuff[0])&&(0xF2 == cmdbuff[1]))
+	{
+		return 2;
+	}
+	else if((0xf3 == cmdbuff[0])&&(0xf3 == cmdbuff[1]))
+	{
+		return 3;
+	}
+	else if((0xf4 == cmdbuff[0])&&(0xf4 == cmdbuff[1]))
+	{
+		return 4;
+	}
+	else if((0xf5 == cmdbuff[0])&&(0xf5 == cmdbuff[1]))
+	{
+		return 5;
+	}
+	else if((0xf6 == cmdbuff[0])&&(0xf6 == cmdbuff[1]))
+	{
+		return 6;
+	}
+	return -1;
+}
+
 //消息
 int CommHelper::MsgProcess(const char * data, int data_len)
 {
+//	print_hex(data, data_len, "串口有效数据");
+	int circles;
+	circles = data_len/10;
 
-	print_hex(data, data_len, "串口有效数据");
+	for(int i = 0; i < circles; i++)
+	{
+		char * realdata = new char[10];
+		unsigned char * Replybuffer = new unsigned char[16];
+		memcpy(realdata, (data+i*10), 10);
+		int cmd = StripCMD(realdata, 10);
+		//cmd：1-地图数据 2-规划数据 3-调试数据1 4-调试数据2 5-拍照指令 6-上位机状态查询指令
 
-	m_MainProgram->m_tcpClient.AddToSendQueue(data, data_len);
+		//debug communication data
+		memset(Replybuffer, 0xFD, 16);
+		Replybuffer[0] = 0xFA;
+		Replybuffer[1] = 0xFA;
+		m_MainProgram->m_CommHelper.SendData((char*)Replybuffer, 16);
+		//begin to analyze data and assign to specific thread to deal with
+		switch (cmd)
+		{
+			case 1:
+				m_MainProgram->m_MapDealer.AddToRevMapDataQueue(realdata, 10);
+				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
+				break;
+			case 2:
+//				memset(Replybuffer, 0xFD, 16);
+//				Replybuffer[0] = 0xFA;
+//				Replybuffer[1] = 0xFA;
+//				m_MainProgram->m_CommHelper.SendData((char*)Replybuffer, 16);
+//				usleep(30000);
+//				m_MainProgram->m_MapDealer.AddToRevPlanOrderQueue(realdata, 10);
+				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
+				break;
+			case 3:
+				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
+				break;
+			case 4:
+				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
+				break;
+			case 5:
+				break;
+			case 6:
+				break;
+			default:
+				break;
+		}
+		//end to analyze data and assign to specifice thread to deal with
+
+		//m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
+	}
 
 	return 1;
 }
@@ -205,6 +287,7 @@ void *CommHelper::CommReadThreadFunc(void * lparam)
 			count += len;
 		}
 	}
+
 
 	printf("CommReadThreadFunc exit.\n");
 	return 0;

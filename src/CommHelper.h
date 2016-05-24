@@ -40,7 +40,8 @@ public:
 	int init_dev();
 	int Open(MainProgram *lp ,char * device , int speed);
 	int Close();
-	int ExtractData( const char * data, int data_len);
+	int ExtractData(const char * data, int data_len);
+	int StripCMD(const char * data, int data_len);
 	int MsgProcess(const char * data, int data_len);
 
 private:
