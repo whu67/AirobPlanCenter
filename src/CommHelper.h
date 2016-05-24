@@ -20,6 +20,10 @@
 
 #include "unit.h"
 
+#define SERIALS_RECIEVEDATA_BUFFERSLOT  	16
+#define SERIALS_RECIEVEDATA_CMDCOUNTERS		7
+#define SERIALS_RECIEVEDATA_BUFFERLENGTH	10
+
 using namespace std;
 
 class MainProgram;

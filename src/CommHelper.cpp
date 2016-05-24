@@ -7,6 +7,8 @@
 #include "main.h"
 #include "CommHelper.h"
 
+bool Serials_RecieveData_Valid[SERIALS_RECIEVEDATA_BUFFERSLOT];
+
 CommHelper::CommHelper()
 {
 //	strcpy(dev, "/dev/");
@@ -55,7 +57,6 @@ int CommHelper::SendData(char * str, int len)
 
 int CommHelper::init_dev()
 {
-
 	struct termios newtio;
 
 	fd = open(dev, O_RDWR | O_NOCTTY | O_NDELAY);
@@ -107,6 +108,13 @@ int CommHelper::init_dev()
 	newtio.c_cc[VMIN] = 0; /* blocking read until 0 character arrives */
 	tcsetattr(fd, TCSANOW, &newtio);
 
+	for(i = 0; i < SERIALS_RECIEVEDATA_BUFFERSLOT; i++);
+	{
+		if(i < SERIALS_RECIEVEDATA_CMDCOUNTERS)
+			Serials_RecieveData_Valid[i] = true;
+		else
+			Serials_RecieveData_Valid[i] = false;
+	}
 	return 1;
 }
 
@@ -162,11 +170,13 @@ int CommHelper::MsgProcess(const char * data, int data_len)
 		int cmd = StripCMD(realdata, 10);
 		//cmd：1-地图数据 2-规划数据 3-调试数据1 4-调试数据2 5-拍照指令 6-上位机状态查询指令
 
+
 		//debug communication data
-		memset(Replybuffer, 0xFD, 16);
-		Replybuffer[0] = 0xFA;
-		Replybuffer[1] = 0xFA;
-		m_MainProgram->m_CommHelper.SendData((char*)Replybuffer, 16);
+//		memset(Replybuffer, 0xFD, 16);
+//		Replybuffer[0] = 0xFA;
+//		Replybuffer[1] = 0xFA;
+//		m_MainProgram->m_CommHelper.SendData((char*)Replybuffer, 16);
+
 		//begin to analyze data and assign to specific thread to deal with
 		switch (cmd)
 		{
@@ -175,12 +185,12 @@ int CommHelper::MsgProcess(const char * data, int data_len)
 				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
 				break;
 			case 2:
-//				memset(Replybuffer, 0xFD, 16);
-//				Replybuffer[0] = 0xFA;
-//				Replybuffer[1] = 0xFA;
-//				m_MainProgram->m_CommHelper.SendData((char*)Replybuffer, 16);
-//				usleep(30000);
-//				m_MainProgram->m_MapDealer.AddToRevPlanOrderQueue(realdata, 10);
+				memset(Replybuffer, 0xFD, 16);
+				Replybuffer[0] = 0xFA;
+				Replybuffer[1] = 0xFA;
+				m_MainProgram->m_CommHelper.SendData((char*)Replybuffer, 16);
+				usleep(30000);
+				m_MainProgram->m_MapDealer.AddToRevPlanOrderQueue(realdata, 10);
 				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
 				break;
 			case 3:
@@ -223,72 +233,113 @@ void *CommHelper::CommReadThreadFunc(void * lparam)
 	//得到CommHelper实例指针
 	pCommHelper = (CommHelper*) lparam;
 
-	//printf("CommReadThreadFunc start in device fd %d.\n", pCommHelper->fd);
-	int n, max_fd, len, count = 0;
-	fd_set input;
-	max_fd = pCommHelper->fd + 1;
-	/* Do the select */
-	struct timeval timeout;
-	char buffer[1024];
-	char * ptr = buffer;
-	int ret = 0;
+//	printf("CommReadThreadFunc start in device fd %d.\n", pCommHelper->fd);
+//	int n, max_fd, len, count = 0;
+//	fd_set input;
+//	max_fd = pCommHelper->fd + 1;
+//	/* Do the select */
+//	struct timeval timeout;
+//	char buffer[1024];
+//	char * ptr = buffer;
+//	int ret = 0;
+//
+//	while (true)
+//	{
+//		timeout.tv_sec = 0;
+//		timeout.tv_usec = 30 * 1000; //20ms
+//		FD_ZERO(&input);
+//		FD_SET(pCommHelper->fd, &input);
+//		n = select(max_fd, &input, NULL, NULL, &timeout);
+//		if (n < 0)
+//			perror("select failed");
+//
+//		else if (n == 0)
+//		{
+//			if ( (count - ret )> 0)
+//			{   ///
+//				buffer[count] = 0;
+//
+//				printf("com rev :(Str)[%s]\n", buffer);
+//				fprintf(stdout, "com rev :(Hex)[%02X",
+//						(unsigned char) buffer[0]);
+//				for (int i = 1; i < count; i++)
+//				{
+//					fprintf(stdout, " %02X", (unsigned char) buffer[i]);
+//				}
+//				fprintf(stdout, "]\n");
+//
+//				ret = pCommHelper->ExtractData(buffer, count);
+//				count = count - ret;
+//				if (count < 512)
+//				{
+//					Hexstrncpy(buffer, buffer + ret, count);
+//					ptr = buffer + count;
+//				}
+//				else
+//				{
+//					count = 0;
+//					ptr = buffer;
+//				}
+//				ret = count ; //用来标记下次是否有数据增加
+//			}
+//		}
+//		else
+//		{
+//			ioctl(pCommHelper->fd, FIONREAD, &len);
+//			if (!len)
+//			{
+//				fprintf(stderr, "Communication closed by server\n");
+//				break;
+//			}
+//
+//			len = read(pCommHelper->fd, ptr, len);
+//			ptr += len;
+//			count += len;
+//		}
+//	}
 
-	while (true)
+	int inputfd = pCommHelper->fd;
+	unsigned char TemporaryBuffer[ 2 ];
+	char RecieveBuffer[SERIALS_RECIEVEDATA_BUFFERLENGTH];
+
+	int readcounter;
+	while(true)
 	{
-		timeout.tv_sec = 0;
-		timeout.tv_usec = 30 * 1000; //20ms
-		FD_ZERO(&input);
-		FD_SET(pCommHelper->fd, &input);
-		n = select(max_fd, &input, NULL, NULL, &timeout);
-		if (n < 0)
-			perror("select failed");
-
-		else if (n == 0)
+		while((readcounter = read(inputfd, TemporaryBuffer, 1)) > 0)
 		{
-			if ( (count - ret )> 0)
-			{   ///
-				buffer[count] = 0;
-
-				printf("com rev :(Str)[%s]\n", buffer);
-				fprintf(stdout, "com rev :(Hex)[%02X",
-						(unsigned char) buffer[0]);
-				for (int i = 1; i < count; i++)
-				{
-					fprintf(stdout, " %02X", (unsigned char) buffer[i]);
-				}
-				fprintf(stdout, "]\n");
-
-				ret = pCommHelper->ExtractData(buffer, count);
-				count = count - ret;
-				if (count < 512)
-				{
-					Hexstrncpy(buffer, buffer + ret, count);
-					ptr = buffer + count;
-				}
-				else
-				{
-					count = 0;
-					ptr = buffer;
-				}
-				ret = count ; //用来标记下次是否有数据增加
-			}
-		}
-		else
-		{
-			ioctl(pCommHelper->fd, FIONREAD, &len);
-			if (!len)
+			if(((TemporaryBuffer[0]^0xF0) <= SERIALS_RECIEVEDATA_CMDCOUNTERS)&&((TemporaryBuffer[0]^0xF0) != 0))
 			{
-				fprintf(stderr, "Communication closed by server\n");
-				break;
+				if((readcounter = read(inputfd, &TemporaryBuffer[1], 1)) > 0)
+				{
+					if(TemporaryBuffer[0] == TemporaryBuffer[1])
+					{
+						bool GoOnGet = true;
+						int Recieveindex = 2;
+						RecieveBuffer[0] = TemporaryBuffer[0];
+						RecieveBuffer[1] = TemporaryBuffer[1];
+						while(GoOnGet)
+						{
+							if(Recieveindex == 10)
+							{
+								pCommHelper->ExtractData(RecieveBuffer, 10);
+								usleep(20 * 1000);
+								break;
+							}
+							else
+							{
+								if((readcounter = read(inputfd, &RecieveBuffer[Recieveindex], 1)) > 0)
+								{
+									Recieveindex++;
+									usleep(1000);
+								}
+							}
+						}
+					}
+				}
 			}
-
-			len = read(pCommHelper->fd, ptr, len);
-			ptr += len;
-			count += len;
 		}
+		usleep(10*1000);
 	}
-
-
 	printf("CommReadThreadFunc exit.\n");
 	return 0;
 }
