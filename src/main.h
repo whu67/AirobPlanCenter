@@ -23,9 +23,11 @@
 #include <assert.h>
 
 #include "unit.h"
+
 #include "TCPClient.h"
 #include "CommHelper.h"
 #include "MapDealer.h"
+#include "ParameterAdjust.h"
 #include "inifile.h"
 
 using namespace std;
@@ -36,8 +38,8 @@ class MainProgram
  public:
 	TCPClient m_tcpClient;
 	CommHelper m_CommHelper;
-//	CommHelper m_CommSender;
 	MapDealer m_MapDealer;
+	ParameterAdjust m_ParameterAdjuster;
 
 	int RemotePort;
 	char RemoteHost[20];

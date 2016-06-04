@@ -52,6 +52,8 @@ struct MapData
 	}
 };
 
+class MainProgram;
+
 class MapDealer
 {
 public:
@@ -68,6 +70,8 @@ public:
 	bool CreateUpdateMapandPlanThread();
 	int UpdateMapProcess(const MapData* msg);
 	int RoadPlanProcess(const MapData* msg);
+
+	void ClearMap();
 
 	int mapdump;
 public:

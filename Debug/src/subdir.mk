@@ -6,6 +6,7 @@
 CPP_SRCS += \
 ../src/CommHelper.cpp \
 ../src/MapDealer.cpp \
+../src/ParameterAdjust.cpp \
 ../src/TCPClient.cpp \
 ../src/astar_algoirthm.cpp \
 ../src/main.cpp \
@@ -17,6 +18,7 @@ C_SRCS += \
 OBJS += \
 ./src/CommHelper.o \
 ./src/MapDealer.o \
+./src/ParameterAdjust.o \
 ./src/TCPClient.o \
 ./src/astar_algoirthm.o \
 ./src/inifile.o \
@@ -29,6 +31,7 @@ C_DEPS += \
 CPP_DEPS += \
 ./src/CommHelper.d \
 ./src/MapDealer.d \
+./src/ParameterAdjust.d \
 ./src/TCPClient.d \
 ./src/astar_algoirthm.d \
 ./src/main.d \
@@ -39,7 +42,7 @@ CPP_DEPS += \
 src/%.o: ../src/%.cpp
 	@echo 'Building file: $<'
 	@echo 'Invoking: GCC C++ Compiler'
-	g++ -O0 -g3 -Wall -c -fmessage-length=0 -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@)" -o "$@" "$<"
+	g++ -I/usr/local/include -I/usr/local/include/opencv -O0 -g3 -Wall -c -fmessage-length=0 -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@)" -o "$@" "$<"
 	@echo 'Finished building: $<'
 	@echo ' '
 

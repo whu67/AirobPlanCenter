@@ -39,7 +39,6 @@ int CommHelper::SendData(char * str, int len)
 		}
 		else
 		{
-
 			//printf("com send :(Str)[%s]\n", str);
 			fprintf(stdout, "COM send (Hex):[%02X", (unsigned char) str[0]);
 			for (int i = 1; i < len; i++)
@@ -152,6 +151,10 @@ int CommHelper::StripCMD(const char * data, int data_len)
 	{
 		return 6;
 	}
+	else if((0xf7 == cmdbuff[0])&&(0xf7 == cmdbuff[1]))
+	{
+		return 7;
+	}
 	return -1;
 }
 
@@ -200,8 +203,22 @@ int CommHelper::MsgProcess(const char * data, int data_len)
 				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
 				break;
 			case 5:
+				if(0x11 == realdata[7])
+				{
+					//Get a Photo
+					m_MainProgram->m_ParameterAdjuster.GetPhoto(realdata[4], realdata[5]);
+				}
+				else
+				{
+					//Parameter Adjust
+					m_MainProgram->m_ParameterAdjuster.AddToAdjustQueue(realdata, 10);
+				}
 				break;
 			case 6:
+				break;
+			case 7:
+				m_MainProgram->m_MapDealer.ClearMap();
+				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
 				break;
 			default:
 				break;

@@ -470,6 +470,10 @@ int MapDealer::RoadPlanProcess(const MapData* msg)
 	return 1;
 }
 
+void MapDealer::ClearMap()
+{
+	memset(Fix, 0, MAX_MAP_GRID*MAX_MAP_GRID);
+}
 
 
 

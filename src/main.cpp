@@ -59,16 +59,6 @@ int MainProgram::start()
 		printf("Serial Device = %s \n", Serdevice);
 	}
 
-//	if(!read_profile_string("SendDevice", "SendSerial", SendDevice, 20, "/dev/ttyS1", "./config.ini"))
-//	{
-//		printf("Read ini file failed!, Programme exit!\n");
-//		return -1;
-//	}
-//	else
-//	{
-//		printf("Serial Device = %s \n", Serdevice);
-//	}
-
 	SerSpeed = read_profile_int("Speed", "SerSpeed", 115200, "./config.ini");
 	//end to read config.ini
 
@@ -82,15 +72,6 @@ int MainProgram::start()
 		printf("Comm Speed is %d.\n", m_CommHelper.Speed);
 	}
 
-//	if(m_CommSender.Open(this, SendDevice, SerSpeed) < 0)
-//	{
-//		printf("Device send device failed.\n");
-//		exit(1);
-//	}
-//	else
-//	{
-//		printf("Comm Speed is %d.\n", m_CommSender.Speed);
-//	}
 
 	//设置m_tcpClient属性
 	strcpy(m_tcpClient.m_remoteHost, RemoteHost); //
@@ -120,6 +101,12 @@ int MainProgram::start()
 		exit(1);
 	}
 
+	m_ParameterAdjuster.open(this);
+	if(!m_ParameterAdjuster.init())
+	{
+		fprintf(stdout, "Parameter Adjuster initialize failed!\n");
+		exit(1);
+	}
 	return 0;
 }
 
@@ -182,15 +169,6 @@ int main(int argc, char *argv[])
 		char device[10];
 		strcpy(device, "ttyATH0");
 		strcpy(m_MainProgram.Serdevice, device);
-		/*		for (int i = '0'; i <= '9'; i++) { //自动查找一个可用的设备
-		 device[11] = i;
-		 //printf ("可用的devce：[%s]\n",device.c_str()) ;
-		 if (access(device, F_OK) != -1) {
-		 printf("可用的devce：[%s]\n", device + 5);
-		 strcpy(m_MainProgram.Serdevice, device + 5);
-		 break;
-		 }
-		 }*/
 	}
 
 	m_MainProgram.start();
@@ -284,8 +262,8 @@ int main(int argc, char *argv[])
 				m_MainProgram.m_CommHelper.ExtractData(SendBuf, count);
 			}
 				break;
-			case 'p':
-			case 'P':
+			case 'd':
+			case 'D':
 			{
 				//output Fix array to /home/map.txt
 				unsigned char tmpoutfix[MAX_MAP_GRID][MAX_MAP_GRID];
@@ -303,6 +281,21 @@ int main(int argc, char *argv[])
 				outputstr.close();
 				fprintf(stdout, "Dump map data to  /home/map.txt done!");
 			}
+				break;
+			case 'p':
+			case 'P':
+			{
+				//Get a Photo by m_ParameterAdjster
+				if(m_MainProgram.m_ParameterAdjuster.GetPhoto(0x00,0x00))
+				{
+					fprintf(stdout, "Get photo successfully!");
+				}
+				else
+				{
+					fprintf(stdout, "Get photo failed!");
+				}
+			}
+				break;
 			default:
 				fprintf(stdout, "命令未知!请输入 h | H 查看帮助.\n");
 				break;
