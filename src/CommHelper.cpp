@@ -196,7 +196,8 @@ int CommHelper::MsgProcess(const char * data, int data_len)
 		switch (cmd)
 		{
 			case 1:
-				m_MainProgram->m_MapDealer.AddToRevMapDataQueue(realdata, 10);
+				//m_MainProgram->m_MapDealer.AddToRevMapDataQueue(realdata, 10);
+				m_MainProgram->m_MapDealer.UpdateMapDirectly(realdata);
 				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
 				break;
 			case 2:

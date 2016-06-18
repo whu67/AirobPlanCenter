@@ -50,6 +50,7 @@ struct MapData
 		}
 		data_len = 0;
 	}
+	unsigned char tmp[MAX_MAP_GRID][MAX_MAP_GRID];
 };
 
 class MainProgram;
@@ -69,6 +70,7 @@ public:
 	void AddToRevPlanOrderQueue(const char * data, int data_len, int priority = 10);
 	bool CreateUpdateMapandPlanThread();
 	int UpdateMapProcess(const MapData* msg);
+	int UpdateMapDirectly(const char* updatemsg);
 	int RoadPlanProcess(const MapData* msg);
 
 	void ClearMap();

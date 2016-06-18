@@ -23,6 +23,7 @@
 #include "opencv2/nonfree/nonfree.hpp"
 #include <math.h>
 #include <stdlib.h>
+#include <unistd.h>
 using namespace cv;
 
 //#define DEBUGPHOTO
@@ -60,11 +61,11 @@ bool ParameterAdjust::init()
 	PhotoAdjustMap.clear();
 	maxError = 0.06f;
 
-	capture = cvCreateCameraCapture(CV_CAP_ANY);
-	if(NULL == capture)
-		return false;
-	cvSetCaptureProperty(capture, CV_CAP_PROP_FRAME_WIDTH, 1280);
-	cvSetCaptureProperty(capture, CV_CAP_PROP_FRAME_HEIGHT, 720);
+//	capture = cvCreateCameraCapture(CV_CAP_ANY);
+//	if(NULL == capture)
+//		return false;
+//	cvSetCaptureProperty(capture, CV_CAP_PROP_FRAME_WIDTH, 1280);
+//	cvSetCaptureProperty(capture, CV_CAP_PROP_FRAME_HEIGHT, 720);
 	return true;
 }
 
@@ -94,18 +95,27 @@ void ParameterAdjust::AddToAdjustQueue(const char* data, int data_len, int prior
 
 bool ParameterAdjust::GetTmpPhoto(unsigned char Xindex, unsigned char Yindex)
 {
+	capture = cvCreateCameraCapture(CV_CAP_ANY);
+	if(NULL == capture)
+		return false;
+	cvSetCaptureProperty(capture, CV_CAP_PROP_FRAME_WIDTH, 1280);
+	cvSetCaptureProperty(capture, CV_CAP_PROP_FRAME_HEIGHT, 720);
+
+//	usleep(1000*1000);
 	IplImage* frame;
 	frame = cvQueryFrame(capture);
 	if(!frame)
 	{
 		//return failure of get photo to robot
 		fprintf(stdout, "Get adjusted photo failed!\n");
+		cvReleaseCapture(&capture);
 		return false;
 	}
 	else
 	{
 #ifdef DEBUGPHOTO
 		cvShowImage("vedio",frame);
+		cvReleaseCapture(&capture);
 		return true;
 #endif
 #ifdef DEBUGSAVE
@@ -124,24 +134,36 @@ bool ParameterAdjust::GetTmpPhoto(unsigned char Xindex, unsigned char Yindex)
 		index = atoi(indexbuffer);
 		fprintf(stdout, "Adjust photo index is %d.\n", index);
 		PhotoAdjustMap.insert(std::pair<int, Mat>(index, img));
+		cvReleaseCapture(&capture);
 	}
 	return true;
 }
 
 bool ParameterAdjust::GetPhoto(unsigned char Xindex, unsigned char Yindex)
 {
+	capture = cvCreateCameraCapture(CV_CAP_ANY);
+	if(NULL == capture)
+		return false;
+	fprintf(stdout, "cvSetCaptureProperty value is  %d.\n", cvSetCaptureProperty(capture, CV_CAP_PROP_FRAME_WIDTH, 1280));
+	fprintf(stdout, "cvSetCaptureProperty value is  %d.\n", cvSetCaptureProperty(capture, CV_CAP_PROP_FRAME_HEIGHT, 720));
+	cvSetCaptureProperty(capture, CV_CAP_PROP_FRAME_WIDTH, 1280);
+	cvSetCaptureProperty(capture, CV_CAP_PROP_FRAME_HEIGHT, 720);
+
+//	usleep(1000*1000);
 	IplImage* frame;
 	frame = cvQueryFrame(capture);
 	if(!frame)
 	{
 		//return failure of get photo to robot
 		fprintf(stdout, "Get first photo failed!\n");
+		cvReleaseCapture(&capture);
 		return false;
 	}
 	else
 	{
 #ifdef DEBUGPHOTO
 		cvShowImage("vedio",frame);
+		cvReleaseCapture(&capture);
 		return true;
 #endif
 #ifdef DEBUGSAVE
@@ -156,6 +178,7 @@ bool ParameterAdjust::GetPhoto(unsigned char Xindex, unsigned char Yindex)
 		index = atoi(indexbuffer);
 		fprintf(stdout, "photo index is %d.\n", index);
 		PhotoMap.insert(std::pair<int, Mat>(index, img));
+		cvReleaseCapture(&capture);
 	}
 	return true;
 }

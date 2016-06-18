@@ -70,6 +70,7 @@ void MapDealer::AddToRevPlanOrderQueue(const char * data, int data_len, int prio
 	m_RevMapData.data[data_len] = 0;
 	m_RevMapData.data_len = data_len;
 	m_RevMapData.priority = priority;
+	memcpy(m_RevMapData.tmp, Fix, MAX_MAP_GRID*MAX_MAP_GRID);
 	pthread_mutex_lock(&RevPlanOrderQueuemutex);
 	RevPlanOrderQueue.push(m_RevMapData);
 	pthread_mutex_unlock(&RevPlanOrderQueuemutex);
@@ -103,6 +104,15 @@ int MapDealer::UpdateMapProcess(const MapData* msg)
 	int X_index = msg->data[2];
 	int Y_index = msg->data[3];
 	unsigned char value = msg->data[6];
+	Fix[X_index][Y_index] = value;
+	return 1;
+}
+
+int MapDealer::UpdateMapDirectly(const char* updatemsg)
+{
+	int X_index = updatemsg[2];
+	int Y_index = updatemsg[3];
+	unsigned char value = updatemsg[6];
 	Fix[X_index][Y_index] = value;
 	return 1;
 }
@@ -186,8 +196,9 @@ int MapDealer::RoadPlanProcess(const MapData* msg)
 	X_EndIndex = msg->data[4];
 	Y_EndIndex = msg->data[5];
 
-	memcpy(tmpFix, Fix, MAX_MAP_GRID*MAX_MAP_GRID);
-	tmpFix[X_StartIndex][Y_StartIndex] |= 0x01;
+//	memcpy(tmpFix, Fix, MAX_MAP_GRID*MAX_MAP_GRID);
+//	tmpFix[X_StartIndex][Y_StartIndex] |= 0x01;
+	memcpy(tmpFix, msg->tmp, MAX_MAP_GRID*MAX_MAP_GRID);
 /*
 	ifstream getmapstream;
 	int si,sj;
