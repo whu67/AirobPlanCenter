@@ -32,6 +32,7 @@
 
 using namespace std;
 
+#define DEBUG
 
 class MainProgram
 {

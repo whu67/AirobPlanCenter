@@ -230,6 +230,7 @@ void *TCPClient::SendQueueThreadFunc(void * lparam)
 				if (pSocket->SendDataQueue.top().data != NULL)
 				{
 					delete (pSocket->SendDataQueue.top().data);
+				//	delete[] pSocket->SendDataQueue.top().data;
 				}
 				pSocket->SendDataQueue.pop();
 				pthread_mutex_unlock(&pSocket->SendDataQueuemutex);

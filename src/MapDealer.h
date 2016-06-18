@@ -74,6 +74,7 @@ public:
 	void ClearMap();
 
 	int mapdump;
+	int pathdump;
 public:
 	MainProgram* m_MainProgram;
 

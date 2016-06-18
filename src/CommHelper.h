@@ -36,6 +36,7 @@ public:
 	~CommHelper();
 	struct termios tio;
 	char dev[15];
+	unsigned char PhotoReply[16];
 	int fd;
 	int Speed ;
 	pthread_t m_CommThreadHandle; //通讯线程句柄

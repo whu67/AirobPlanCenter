@@ -101,7 +101,7 @@ int MainProgram::start()
 		exit(1);
 	}
 
-	m_ParameterAdjuster.open(this);
+	m_ParameterAdjuster.open(&m_CommHelper);//this);
 	if(!m_ParameterAdjuster.init())
 	{
 		fprintf(stdout, "Parameter Adjuster initialize failed!\n");
@@ -286,14 +286,39 @@ int main(int argc, char *argv[])
 			case 'P':
 			{
 				//Get a Photo by m_ParameterAdjster
+				m_MainProgram.m_ParameterAdjuster.RemoveFirstPhoto();
 				if(m_MainProgram.m_ParameterAdjuster.GetPhoto(0x00,0x00))
 				{
-					fprintf(stdout, "Get photo successfully!");
+					fprintf(stdout, "Get photo successfully!\n");
 				}
 				else
 				{
-					fprintf(stdout, "Get photo failed!");
+					fprintf(stdout, "Get photo failed!\n");
 				}
+			}
+				break;
+			case 'a':
+			case 'A':
+			{
+				if(m_MainProgram.m_ParameterAdjuster.GetTmpPhoto(0x00,0x00))
+				{
+					fprintf(stdout, "Get adjust photo successfully!\n");
+				}
+				else
+				{
+					fprintf(stdout, "Get adjust photo failed!\n");
+				}
+				unsigned char test[10];
+				memset(test, 0x00, 10);
+				test[0] = 0xF5;
+				test[1] = 0xF5;
+				AdjustData m_RevAdjustData;
+				m_RevAdjustData.data = new char[11];
+				Hexstrncpy(m_RevAdjustData.data, (char*)test, 10);
+				m_RevAdjustData.data[10] = 0;
+				m_RevAdjustData.data_len = 10;
+				m_RevAdjustData.priority = 10;
+ 				m_MainProgram.m_ParameterAdjuster.AdjustProcess(&m_RevAdjustData);
 			}
 				break;
 			default:

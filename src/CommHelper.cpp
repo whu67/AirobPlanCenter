@@ -13,7 +13,18 @@ CommHelper::CommHelper()
 {
 //	strcpy(dev, "/dev/");
 //	Speed = 115200;
-}
+	memset(PhotoReply, 0xFD, 16);
+	for(int i = 3; i < 15; i++)
+	{
+		PhotoReply[i] = 0xFF;
+	}
+	unsigned char ReplyCRC = PhotoReply[0];
+	for(int i = 1; i < 15; i++)
+	{
+		ReplyCRC ^= PhotoReply[i];
+	}
+	PhotoReply[15] = ReplyCRC;
+ }
 
 CommHelper::~CommHelper()
 {
@@ -50,6 +61,7 @@ int CommHelper::SendData(char * str, int len)
 			return 1;
 		}
 	}
+	delete (str);
 	print_hex(str , len , "Write to serial port failed");
 	return -1;
 }
@@ -192,7 +204,7 @@ int CommHelper::MsgProcess(const char * data, int data_len)
 				Replybuffer[0] = 0xFA;
 				Replybuffer[1] = 0xFA;
 				m_MainProgram->m_CommHelper.SendData((char*)Replybuffer, 16);
-				usleep(30000);
+//				usleep(30000);
 				m_MainProgram->m_MapDealer.AddToRevPlanOrderQueue(realdata, 10);
 				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
 				break;
@@ -206,11 +218,34 @@ int CommHelper::MsgProcess(const char * data, int data_len)
 				if(0x11 == realdata[7])
 				{
 					//Get a Photo
-					m_MainProgram->m_ParameterAdjuster.GetPhoto(realdata[4], realdata[5]);
+					if(!m_MainProgram->m_ParameterAdjuster.GetPhoto(realdata[4], realdata[5]))
+					{
+						//failed to get photo
+						memset(Replybuffer, 0x00, 16);
+						Replybuffer[0] = 0xF5;
+						Replybuffer[1] = 0xF5;
+					}
+					else
+					{
+						memcpy(Replybuffer, PhotoReply, 16);
+					}
+					m_MainProgram->m_CommHelper.SendData((char*)Replybuffer, 16);
 				}
 				else
 				{
 					//Parameter Adjust
+					if(!m_MainProgram->m_ParameterAdjuster.GetTmpPhoto(realdata[4], realdata[5]))
+					{
+						//failed to get photo
+						memset(Replybuffer, 0x00, 16);
+						Replybuffer[0] = 0xF5;
+						Replybuffer[1] = 0xF5;
+					}
+					else
+					{
+						memcpy(Replybuffer, PhotoReply, 16);
+					}
+					m_MainProgram->m_CommHelper.SendData((char*)Replybuffer, 16);
 					m_MainProgram->m_ParameterAdjuster.AddToAdjustQueue(realdata, 10);
 				}
 				break;
@@ -234,7 +269,6 @@ int CommHelper::MsgProcess(const char * data, int data_len)
 //返回的值为已经使用了多少字节
 int CommHelper::ExtractData(const char * data, int data_len)
 {
-
 	int ret = 0;
 
 	MsgProcess(data , data_len) ;
@@ -339,7 +373,7 @@ void *CommHelper::CommReadThreadFunc(void * lparam)
 							if(Recieveindex == 10)
 							{
 								pCommHelper->ExtractData(RecieveBuffer, 10);
-								usleep(20 * 1000);
+								usleep(1 * 1000);
 								break;
 							}
 							else
@@ -347,7 +381,7 @@ void *CommHelper::CommReadThreadFunc(void * lparam)
 								if((readcounter = read(inputfd, &RecieveBuffer[Recieveindex], 1)) > 0)
 								{
 									Recieveindex++;
-									usleep(1000);
+								//	usleep(1000);
 								}
 							}
 						}
@@ -355,7 +389,7 @@ void *CommHelper::CommReadThreadFunc(void * lparam)
 				}
 			}
 		}
-		usleep(10*1000);
+//		usleep(10*1000);
 	}
 	printf("CommReadThreadFunc exit.\n");
 	return 0;

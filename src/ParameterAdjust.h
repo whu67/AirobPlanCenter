@@ -8,28 +8,12 @@
 #ifndef SRC_PARAMETERADJUST_H_
 #define SRC_PARAMETERADJUST_H_
 
-//#include <queue>
-//#include <set>
-//#include <map>
-//#include "opencv2/core/core.hpp"
-//#include "opencv2/highgui/highgui.hpp"
-//#include "opencv2/calib3d/calib3d.hpp"
-//#include "opencv2/nonfree/features2d.hpp"
-//#include "opencv2/imgproc/imgproc.hpp"
-//#include "opencv2/imgproc/types_c.h"
-//#include "opencv2/video/tracking.hpp"
-//#include "opencv2/legacy/legacy.hpp"
-//#include "opencv2/nonfree/features2d.hpp"
-//#include "opencv2/nonfree/nonfree.hpp"
-//#include <math.h>
-//#include <stdlib.h>
-//using namespace cv;
-
 #include <stdlib.h>
 #include <queue>
 #include <pthread.h>
+#include "CommHelper.h"
+#include "unit.h"
 
-class MainProgram;
 
 struct AdjustData
 {
@@ -57,26 +41,33 @@ struct AdjustData
 	}
 };
 
+class MainProgram;
+
 class ParameterAdjust
 {
 public:
 	ParameterAdjust();
 	virtual ~ParameterAdjust();
 
-	int open(MainProgram *lp);
+	int open(CommHelper *lp);
 	bool init();
 
 	void ClearPhotoMap();
+	bool GetTmpPhoto(unsigned char Xindex, unsigned char Yindex);
+	void RemoveFirstPhoto();
 	bool GetPhoto(unsigned char Xindex, unsigned char Yindex);
 	void GetPhotoFromMap();
 
 	void AddToAdjustQueue(const char * data, int data_len, int priority = 10);
 	bool CreateAdjustThread();
+	int AdjustProcess(const AdjustData* msg);
 
 	float maxError;// = 0.06f;
 
-public:
+	int Adjustcount;
+private:
 	MainProgram* m_MainProgram;
+	CommHelper* m_CommHelperPtr;
 
 	std::priority_queue<AdjustData> RevAdjustDataQueue;
 

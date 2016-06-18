@@ -33,6 +33,8 @@ typedef struct Node
 	struct Node* next; //only used for open and close list
 }Node;
 
+void destroy_openlist();
+void destroy_closelist();
 Node* Road_Plan(int map[][N], int starti, int startj, int endi, int endj);
 //==========================open close list operation================
 #endif /* file end */

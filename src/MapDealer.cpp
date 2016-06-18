@@ -29,6 +29,7 @@ MapDealer::~MapDealer()
 void MapDealer::init()
 {
 	mapdump = 0;
+	pathdump = 0;
 	for(int i = 0; i < 2; i++)
 	{
 		for(int t = 0; t < MAX_MAP_GRID; t++)
@@ -186,6 +187,7 @@ int MapDealer::RoadPlanProcess(const MapData* msg)
 	Y_EndIndex = msg->data[5];
 
 	memcpy(tmpFix, Fix, MAX_MAP_GRID*MAX_MAP_GRID);
+	tmpFix[X_StartIndex][Y_StartIndex] |= 0x01;
 /*
 	ifstream getmapstream;
 	int si,sj;
@@ -258,54 +260,81 @@ int MapDealer::RoadPlanProcess(const MapData* msg)
 	outplanmapstr.close();
 */
 
-//	ofstream outplanmapstr;
-//	mapdump++;
-//	char dumppath[20];
-//	sprintf(dumppath, "//home/%d.map", mapdump);
-//	outplanmapstr.open(dumppath, ios::out);
-//	outplanmapstr<<X_StartIndex<<","<<Y_StartIndex<<"   "<<X_EndIndex<<","<<Y_EndIndex<<endl;
-//	//Road Plan under 3 is blocked!
-//	for(int i  = 0; i < MAX_MAP_GRID; i++)
-//	{
-//		for(int j = 0; j < MAX_MAP_GRID; j++)
-//		{
-//			if(0x00 == tmpFix[i][j])
-//			{
-//				map[i][j] = UNAVAIL;
-//			}
-//			else if(0x01 == tmpFix[i][j])
-//			{
-//				map[i][j] = AVAIL;
-//			}
-//			else if(0x02 == tmpFix[i][j])
-//			{
-//				map[i][j] = UNAVAIL;
-//			}
-//			else if(0x03 == tmpFix[i][j])
-//			{
-//				map[i][j] = UNAVAIL;
-//			}
-//			else
-//			{
-//				map[i][j] = AVAIL;
-//			}
-////			if((X_StartIndex == i)&&(Y_StartIndex == j))
-////				outplanmapstr<<" "<<5;
-////			else if((X_EndIndex == i)&&(Y_EndIndex == j))
-////				outplanmapstr<<" "<<6;
-////			else
-//				outplanmapstr<<" "<<map[i][j];
-//		}
-//		outplanmapstr<<endl;
-//	}
-//	outplanmapstr.close();
+#ifdef DEBUG
+	ofstream outplanmapstr;
+	mapdump++;
+	char dumppath[20];
+	sprintf(dumppath, "//home/%d.map", mapdump);
+	outplanmapstr.open(dumppath, ios::out);
+	outplanmapstr<<X_StartIndex<<","<<Y_StartIndex<<"   "<<X_EndIndex<<","<<Y_EndIndex<<endl;
+	//Road Plan under 3 is blocked!
+	for(int i  = 0; i < MAX_MAP_GRID; i++)
+	{
+		for(int j = 0; j < MAX_MAP_GRID; j++)
+		{
+			if(0x00 == tmpFix[i][j])
+			{
+				map[i][j] = UNAVAIL;
+			}
+			else if(0x01 == tmpFix[i][j])
+			{
+				map[i][j] = AVAIL;
+			}
+			else if(0x02 == tmpFix[i][j])
+			{
+				map[i][j] = UNAVAIL;
+			}
+			else if(0x03 == tmpFix[i][j])
+			{
+				map[i][j] = UNAVAIL;
+			}
+			else
+			{
+				map[i][j] = AVAIL;
+			}
+			if((X_StartIndex == i)&&(Y_StartIndex == j))
+				outplanmapstr<<" "<<5;
+			else if((X_EndIndex == i)&&(Y_EndIndex == j))
+				outplanmapstr<<" "<<6;
+			else
+				outplanmapstr<<" "<<map[i][j];
+		}
+		outplanmapstr<<endl;
+	}
+	outplanmapstr.close();
+#endif
 
 	Node* Path_list;
 	fprintf(stdout, "start: %d,%d  end: %d,%d.\n", X_StartIndex, Y_StartIndex, X_EndIndex, Y_EndIndex);
 	Path_list = Road_Plan(map,X_StartIndex, Y_StartIndex, X_EndIndex, Y_EndIndex);
 	if(!Path_list)
 	{
-//		//Road Plan under 3 is passed!
+		//Road Plan under 3 is passed!
+		destroy_openlist();
+		destroy_closelist();
+		Path_list = Road_Plan(map,X_StartIndex, Y_StartIndex, X_EndIndex, Y_EndIndex);
+	}
+
+	if(Path_list)
+	{
+		unsigned char PathBuffer[2048];
+		memset(PathBuffer, 0, 2048);
+		//serial path to buffer
+		Node* tmp_ptr = Path_list;
+		int tag = 0;
+		while(tmp_ptr)
+		{
+			PathBuffer[tag] = tmp_ptr->j;
+			tag++;
+			PathBuffer[tag] = tmp_ptr->i;
+			tag++;
+			tmpFix[tmp_ptr->i][tmp_ptr->j] = 0xFF;
+			tmp_ptr = tmp_ptr->parent;
+		}
+
+		destroy_openlist();
+		destroy_closelist();
+//		ofstream outplanmapstr;
 //		mapdump++;
 //		char dumppath[20];
 //		sprintf(dumppath, "//home/%d.map", mapdump);
@@ -325,40 +354,74 @@ int MapDealer::RoadPlanProcess(const MapData* msg)
 //				}
 //				else if(0x02 == tmpFix[i][j])
 //				{
-//					map[i][j] =UNAVAIL;
+//					map[i][j] = UNAVAIL;
+//				}
+//				else if(0x03 == tmpFix[i][j])
+//				{
+//					map[i][j] = UNAVAIL;
 //				}
 //				else
 //				{
 //					map[i][j] = AVAIL;
 //				}
-//			/*	if((X_StartIndex == i)&&(Y_StartIndex == j))
-//					outplanmapstr<<" "<<5;
-//				else if((X_EndIndex == i)&&(Y_EndIndex == j))
-//					outplanmapstr<<" "<<6;
-//				else*/
+//	//			if((X_StartIndex == i)&&(Y_StartIndex == j))
+//	//				outplanmapstr<<" "<<5;
+//	//			else if((X_EndIndex == i)&&(Y_EndIndex == j))
+//	//				outplanmapstr<<" "<<6;
+//	//			else
 //					outplanmapstr<<" "<<map[i][j];
 //			}
 //			outplanmapstr<<endl;
 //		}
 //		outplanmapstr.close();
-		Path_list = Road_Plan(map,X_StartIndex, Y_StartIndex, X_EndIndex, Y_EndIndex);
-	}
 
-	if(Path_list)
-	{
-		unsigned char PathBuffer[2048];
-		memset(PathBuffer, 0, 2048);
-		//serial path to buffer
-		Node* tmp_ptr = Path_list;
-		int tag = 0;
-		while(tmp_ptr)
+#ifdef DEBUG
+		ofstream outplanpathstr;
+		pathdump++;
+		char dumppath[20];
+		sprintf(dumppath, "//home/%d-%d.path", pathdump, mapdump);
+		outplanpathstr.open(dumppath, ios::out);
+		outplanpathstr<<X_StartIndex<<","<<Y_StartIndex<<"   "<<X_EndIndex<<","<<Y_EndIndex<<endl;
+		//Road Plan under 3 is blocked!
+		for(int i  = 0; i < MAX_MAP_GRID; i++)
 		{
-			PathBuffer[tag] = tmp_ptr->j;
-			tag++;
-			PathBuffer[tag] = tmp_ptr->i;
-			tag++;
-			tmp_ptr = tmp_ptr->parent;
+			for(int j = 0; j < MAX_MAP_GRID; j++)
+			{
+				if(0x00 == tmpFix[i][j])
+				{
+					map[i][j] = UNAVAIL;
+				}
+				else if(0x01 == tmpFix[i][j])
+				{
+					map[i][j] = AVAIL;
+				}
+				else if(0x02 == tmpFix[i][j])
+				{
+					map[i][j] = UNAVAIL;
+				}
+				else if(0x03 == tmpFix[i][j])
+				{
+					map[i][j] = UNAVAIL;
+				}
+				else if(0xFF == tmpFix[i][j])
+				{
+					map[i][j] = 8;
+				}
+				else
+				{
+					map[i][j] = AVAIL;
+				}
+				if((X_StartIndex == i)&&(Y_StartIndex == j))
+					outplanpathstr<<" "<<5;
+				else if((X_EndIndex == i)&&(Y_EndIndex == j))
+					outplanpathstr<<" "<<6;
+				else
+					outplanpathstr<<" "<<map[i][j];
+			}
+			outplanpathstr<<endl;
 		}
+		outplanpathstr.close();
+#endif
 
 		int AllSendNode = (tag>143)? 144:tag;
 		unsigned char * RealSend = new unsigned char[AllSendNode];
@@ -454,6 +517,8 @@ int MapDealer::RoadPlanProcess(const MapData* msg)
 	else
 	{
 		//add 0xff to Commhelper send queue, there is no path to go
+		destroy_openlist();
+		destroy_closelist();
 		unsigned char* RoadPlanSendBuffer = new unsigned char[16];
 		memset(RoadPlanSendBuffer, 0xFF, 16);
 		RoadPlanSendBuffer[0] = 0xFA;
