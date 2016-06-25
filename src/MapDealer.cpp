@@ -70,7 +70,11 @@ void MapDealer::AddToRevPlanOrderQueue(const char * data, int data_len, int prio
 	m_RevMapData.data[data_len] = 0;
 	m_RevMapData.data_len = data_len;
 	m_RevMapData.priority = priority;
-	memcpy(m_RevMapData.tmp, Fix, MAX_MAP_GRID*MAX_MAP_GRID);
+
+	unsigned char *tmpmap = new unsigned char[MAX_MAP_GRID*MAX_MAP_GRID];
+	memcpy(tmpmap, Fix, MAX_MAP_GRID*MAX_MAP_GRID);
+//	memcpy(m_RevMapData.tmp, Fix, MAX_MAP_GRID*MAX_MAP_GRID);
+	m_RevMapData.tmp = tmpmap;
 	pthread_mutex_lock(&RevPlanOrderQueuemutex);
 	RevPlanOrderQueue.push(m_RevMapData);
 	pthread_mutex_unlock(&RevPlanOrderQueuemutex);
@@ -190,6 +194,7 @@ int MapDealer::RoadPlanProcess(const MapData* msg)
 	int X_StartIndex,Y_StartIndex;
 	int X_EndIndex,Y_EndIndex;
 	int map[MAX_MAP_GRID][MAX_MAP_GRID];
+	bool blockavailtag =false;
 
 	X_StartIndex = msg->data[2];
 	Y_StartIndex = msg->data[3];
@@ -199,85 +204,15 @@ int MapDealer::RoadPlanProcess(const MapData* msg)
 //	memcpy(tmpFix, Fix, MAX_MAP_GRID*MAX_MAP_GRID);
 //	tmpFix[X_StartIndex][Y_StartIndex] |= 0x01;
 	memcpy(tmpFix, msg->tmp, MAX_MAP_GRID*MAX_MAP_GRID);
-/*
-	ifstream getmapstream;
-	int si,sj;
-	int ei,ej;
-	getmapstream.open("//home/jacky/map", ios::in);
+	delete []msg->tmp;
 
-	if(getmapstream.is_open())
-	{
-		char linecontent[330];
-		getmapstream.getline(linecontent,330);
-		int ytag = 0;
-		int xtag = 0;
-		while(!getmapstream.fail())
-		{
-			xtag = 0;
-			for(int i = 0; i < 330; i+=2,xtag++)
-			{
-				if('1' == linecontent[i])
-				{
-					map[ytag][xtag] = UNAVAIL;
-				}
-				else if('0' == linecontent[i])
-				{
-					map[ytag][xtag] = AVAIL;
-				}
-				else if('5' == linecontent[i])
-				{
-					map[ytag][xtag] = START;
-					si = ytag;
-					sj = i/2;
-				}
-				else if('6' == linecontent[i])
-				{
-					map[ytag][xtag] = END;
-					ei = ytag;
-					ej = i/2;
-				}
-				else
-				{
-					map[ytag][xtag] = UNAVAIL;
-				}
-			}
-			ytag++;
-			if(160 == ytag)
-				break;
-			getmapstream.getline(linecontent,330);
-		}
-	}
-	getmapstream.close();
-
-	ofstream outplanmapstr;
-	mapdump++;
-	char dumppath[20];
-	sprintf(dumppath, "//home/%d.map", mapdump);
-	outplanmapstr.open(dumppath, ios::out);
-
-	for(int i  = 0; i < MAX_MAP_GRID; i++)
-	{
-		for(int j = 0; j < MAX_MAP_GRID; j++)
-		{
-			if((X_StartIndex == i)&&(Y_StartIndex == j))
-				outplanmapstr<<" "<<5;
-			else if((X_EndIndex == i)&&(Y_EndIndex == j))
-				outplanmapstr<<" "<<6;
-			else
-				outplanmapstr<<" "<<map[i][j];
-		}
-		outplanmapstr<<endl;
-	}
-	outplanmapstr.close();
-*/
-
-#ifdef DEBUG
-	ofstream outplanmapstr;
-	mapdump++;
-	char dumppath[20];
-	sprintf(dumppath, "//home/%d.map", mapdump);
-	outplanmapstr.open(dumppath, ios::out);
-	outplanmapstr<<X_StartIndex<<","<<Y_StartIndex<<"   "<<X_EndIndex<<","<<Y_EndIndex<<endl;
+//#ifdef DEBUG
+//	ofstream outplanmapstr;
+//	mapdump++;
+//	char dumppath[20];
+//	sprintf(dumppath, "//home/%d.map", mapdump);
+//	outplanmapstr.open(dumppath, ios::out);
+//	outplanmapstr<<X_StartIndex<<","<<Y_StartIndex<<"   "<<X_EndIndex<<","<<Y_EndIndex<<endl;
 	//Road Plan under 3 is blocked!
 	for(int i  = 0; i < MAX_MAP_GRID; i++)
 	{
@@ -303,17 +238,17 @@ int MapDealer::RoadPlanProcess(const MapData* msg)
 			{
 				map[i][j] = AVAIL;
 			}
-			if((X_StartIndex == i)&&(Y_StartIndex == j))
-				outplanmapstr<<" "<<5;
-			else if((X_EndIndex == i)&&(Y_EndIndex == j))
-				outplanmapstr<<" "<<6;
-			else
-				outplanmapstr<<" "<<map[i][j];
+//			if((X_StartIndex == i)&&(Y_StartIndex == j))
+//				outplanmapstr<<" "<<5;
+//			else if((X_EndIndex == i)&&(Y_EndIndex == j))
+//				outplanmapstr<<" "<<6;
+//			else
+//				outplanmapstr<<" "<<map[i][j];
 		}
-		outplanmapstr<<endl;
+//		outplanmapstr<<endl;
 	}
-	outplanmapstr.close();
-#endif
+//	outplanmapstr.close();
+//#endif
 
 	Node* Path_list;
 	fprintf(stdout, "start: %d,%d  end: %d,%d.\n", X_StartIndex, Y_StartIndex, X_EndIndex, Y_EndIndex);
@@ -321,79 +256,7 @@ int MapDealer::RoadPlanProcess(const MapData* msg)
 	if(!Path_list)
 	{
 		//Road Plan under 3 is passed!
-		destroy_openlist();
-		destroy_closelist();
-		Path_list = Road_Plan(map,X_StartIndex, Y_StartIndex, X_EndIndex, Y_EndIndex);
-	}
-
-	if(Path_list)
-	{
-		unsigned char PathBuffer[2048];
-		memset(PathBuffer, 0, 2048);
-		//serial path to buffer
-		Node* tmp_ptr = Path_list;
-		int tag = 0;
-		while(tmp_ptr)
-		{
-			PathBuffer[tag] = tmp_ptr->j;
-			tag++;
-			PathBuffer[tag] = tmp_ptr->i;
-			tag++;
-			tmpFix[tmp_ptr->i][tmp_ptr->j] = 0xFF;
-			tmp_ptr = tmp_ptr->parent;
-		}
-
-		destroy_openlist();
-		destroy_closelist();
-//		ofstream outplanmapstr;
-//		mapdump++;
-//		char dumppath[20];
-//		sprintf(dumppath, "//home/%d.map", mapdump);
-//		outplanmapstr.open(dumppath, ios::out);
-//		outplanmapstr<<X_StartIndex<<","<<Y_StartIndex<<"   "<<X_EndIndex<<","<<Y_EndIndex<<endl;
-//		for(int i  = 0; i < MAX_MAP_GRID; i++)
-//		{
-//			for(int j = 0; j < MAX_MAP_GRID; j++)
-//			{
-//				if(0x00 == tmpFix[i][j])
-//				{
-//					map[i][j] = UNAVAIL;
-//				}
-//				else if(0x01 == tmpFix[i][j])
-//				{
-//					map[i][j] = AVAIL;
-//				}
-//				else if(0x02 == tmpFix[i][j])
-//				{
-//					map[i][j] = UNAVAIL;
-//				}
-//				else if(0x03 == tmpFix[i][j])
-//				{
-//					map[i][j] = UNAVAIL;
-//				}
-//				else
-//				{
-//					map[i][j] = AVAIL;
-//				}
-//	//			if((X_StartIndex == i)&&(Y_StartIndex == j))
-//	//				outplanmapstr<<" "<<5;
-//	//			else if((X_EndIndex == i)&&(Y_EndIndex == j))
-//	//				outplanmapstr<<" "<<6;
-//	//			else
-//					outplanmapstr<<" "<<map[i][j];
-//			}
-//			outplanmapstr<<endl;
-//		}
-//		outplanmapstr.close();
-
-#ifdef DEBUG
-		ofstream outplanpathstr;
-		pathdump++;
-		char dumppath[20];
-		sprintf(dumppath, "//home/%d-%d.path", pathdump, mapdump);
-		outplanpathstr.open(dumppath, ios::out);
-		outplanpathstr<<X_StartIndex<<","<<Y_StartIndex<<"   "<<X_EndIndex<<","<<Y_EndIndex<<endl;
-		//Road Plan under 3 is blocked!
+		blockavailtag = true;
 		for(int i  = 0; i < MAX_MAP_GRID; i++)
 		{
 			for(int j = 0; j < MAX_MAP_GRID; j++)
@@ -412,16 +275,74 @@ int MapDealer::RoadPlanProcess(const MapData* msg)
 				}
 				else if(0x03 == tmpFix[i][j])
 				{
-					map[i][j] = UNAVAIL;
-				}
-				else if(0xFF == tmpFix[i][j])
-				{
-					map[i][j] = 8;
+					map[i][j] = AVAIL;
 				}
 				else
 				{
 					map[i][j] = AVAIL;
 				}
+			}
+		}
+		destroy_openlist();
+		destroy_closelist();
+		Path_list = Road_Plan(map,X_StartIndex, Y_StartIndex, X_EndIndex, Y_EndIndex);
+	}
+
+	if(Path_list)
+	{
+#ifdef DEBUG
+		ofstream outplanmapstr;
+		mapdump++;
+		char dumppath[20];
+		sprintf(dumppath, "//home/%d.map", mapdump);
+		outplanmapstr.open(dumppath, ios::out);
+		outplanmapstr<<X_StartIndex<<","<<Y_StartIndex<<"   "<<X_EndIndex<<","<<Y_EndIndex<<endl;
+		for(int i  = 0; i < MAX_MAP_GRID; i++)
+		{
+			for(int j = 0; j < MAX_MAP_GRID; j++)
+			{
+				if((X_StartIndex == i)&&(Y_StartIndex == j))
+					outplanmapstr<<" "<<5;
+				else if((X_EndIndex == i)&&(Y_EndIndex == j))
+					outplanmapstr<<" "<<6;
+				else
+					outplanmapstr<<" "<<map[i][j];
+			}
+			outplanmapstr<<endl;
+		}
+		outplanmapstr.close();
+#endif
+
+		unsigned char PathBuffer[2048];
+		memset(PathBuffer, 0, 2048);
+		//serial path to buffer
+		Node* tmp_ptr = Path_list;
+		int tag = 0;
+		while(tmp_ptr)
+		{
+			PathBuffer[tag] = tmp_ptr->j;
+			tag++;
+			PathBuffer[tag] = tmp_ptr->i;
+			tag++;
+//			tmpFix[tmp_ptr->i][tmp_ptr->j] = 0xFF;
+			map[tmp_ptr->i][tmp_ptr->j] = 0xFF;
+			tmp_ptr = tmp_ptr->parent;
+		}
+
+		destroy_openlist();
+		destroy_closelist();
+
+#ifdef DEBUG
+		ofstream outplanpathstr;
+		pathdump++;
+		sprintf(dumppath, "//home/%d-%d.path", pathdump, mapdump);
+		outplanpathstr.open(dumppath, ios::out);
+		outplanpathstr<<X_StartIndex<<","<<Y_StartIndex<<"   "<<X_EndIndex<<","<<Y_EndIndex<<endl;
+		//Road Plan under 3 is blocked!
+		for(int i  = 0; i < MAX_MAP_GRID; i++)
+		{
+			for(int j = 0; j < MAX_MAP_GRID; j++)
+			{
 				if((X_StartIndex == i)&&(Y_StartIndex == j))
 					outplanpathstr<<" "<<5;
 				else if((X_EndIndex == i)&&(Y_EndIndex == j))
@@ -461,6 +382,7 @@ int MapDealer::RoadPlanProcess(const MapData* msg)
 				RoadPlanSendBuffer[15] = CRC;
 
 				m_MainProgram->m_CommHelper.SendData((char*)RoadPlanSendBuffer, 16);
+				delete []RoadPlanSendBuffer;
 			}
 			else
 			{
@@ -484,6 +406,7 @@ int MapDealer::RoadPlanProcess(const MapData* msg)
 				}
 				RoadPlanSendBuffer[15] = CRC;
 				m_MainProgram->m_CommHelper.SendData((char*)RoadPlanSendBuffer, 16);
+				delete []RoadPlanSendBuffer;
 			}
 			circles++;
 			usleep(30000);
@@ -504,6 +427,7 @@ int MapDealer::RoadPlanProcess(const MapData* msg)
 					RoadPlanSendBuffer[2+(i*2)+1] = RealSend[AllSendNode-(TCPcircles*8)-(i*2)-2];
 				}
 				m_MainProgram->m_tcpClient.SendData((char*)RoadPlanSendBuffer, 10);
+				delete []RoadPlanSendBuffer;
 			}
 			else
 			{
@@ -519,11 +443,13 @@ int MapDealer::RoadPlanProcess(const MapData* msg)
 					RoadPlanSendBuffer[2+(i*2)+1] = RealSend[AllSendNode-(TCPcircles*8)-(i*2)-2];
 				}
 				m_MainProgram->m_tcpClient.SendData((char*)RoadPlanSendBuffer, 10);
+				delete []RoadPlanSendBuffer;
 			}
 			TCPcircles++;
 		}
 
-		free(RealSend);
+		delete []RealSend;
+//		free(RealSend);
 	}
 	else
 	{
@@ -542,6 +468,7 @@ int MapDealer::RoadPlanProcess(const MapData* msg)
 		}
 		RoadPlanSendBuffer[15] = CRC;
 		m_MainProgram->m_CommHelper.SendData((char*)RoadPlanSendBuffer, 16);
+		delete []RoadPlanSendBuffer;
 	}
 	return 1;
 }

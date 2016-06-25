@@ -72,6 +72,7 @@ public:
 	bool Connect();
 	//向服务器端发送数据
 	bool SendData(const char * buf, int len);
+	bool SendDataDirectly(const char * buf, int len);
 	bool getConnectionStatus();
 	void AddToSendQueue(const char * data, int data_len, int priority = 10);
 	void AddToRevQueue(const char * data, int data_len, int priority = 10);

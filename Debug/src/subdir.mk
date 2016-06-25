@@ -5,6 +5,7 @@
 # Add inputs and outputs from these tool invocations to the build variables 
 CPP_SRCS += \
 ../src/CommHelper.cpp \
+../src/EstRXY.cpp \
 ../src/MapDealer.cpp \
 ../src/ParameterAdjust.cpp \
 ../src/TCPClient.cpp \
@@ -17,6 +18,7 @@ C_SRCS += \
 
 OBJS += \
 ./src/CommHelper.o \
+./src/EstRXY.o \
 ./src/MapDealer.o \
 ./src/ParameterAdjust.o \
 ./src/TCPClient.o \
@@ -30,6 +32,7 @@ C_DEPS += \
 
 CPP_DEPS += \
 ./src/CommHelper.d \
+./src/EstRXY.d \
 ./src/MapDealer.d \
 ./src/ParameterAdjust.d \
 ./src/TCPClient.d \

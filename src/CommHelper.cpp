@@ -7,6 +7,9 @@
 #include "main.h"
 #include "CommHelper.h"
 
+#define DebugGetPhoto
+//#define DISPLAYCOMDATA
+
 bool Serials_RecieveData_Valid[SERIALS_RECIEVEDATA_BUFFERSLOT];
 
 CommHelper::CommHelper()
@@ -16,7 +19,7 @@ CommHelper::CommHelper()
 	memset(PhotoReply, 0xFD, 16);
 	for(int i = 3; i < 15; i++)
 	{
-		PhotoReply[i] = 0xFF;
+		PhotoReply[i] = 0xFE;
 	}
 	unsigned char ReplyCRC = PhotoReply[0];
 	for(int i = 1; i < 15; i++)
@@ -24,6 +27,17 @@ CommHelper::CommHelper()
 		ReplyCRC ^= PhotoReply[i];
 	}
 	PhotoReply[15] = ReplyCRC;
+
+	ClearData[0] = 0xF7;
+	ClearData[1] = 0xF7;
+	for(int i = 2; i < 10; i++)
+	{
+		ClearData[i] = 0xFF;
+	}
+
+	memset(ErrorGetPhotoData, 0x00, 10);
+	ErrorGetPhotoData[0] = 0xF5;
+	ErrorGetPhotoData[1] = 0xF5;
  }
 
 CommHelper::~CommHelper()
@@ -129,11 +143,44 @@ int CommHelper::init_dev()
 	return 1;
 }
 
+bool CommHelper::CheckGetPhotoData(const char * data, int data_len)
+{
+	unsigned char tmp[10];
+	memcpy(tmp, data, 10);
+	if(!memcmp(ErrorGetPhotoData, tmp, 10))
+	{
+		return false;
+	}
+	return true;
+}
+
+bool CommHelper::CheckCRC(const char * data, int data_len)
+{
+	unsigned char tmp[10];
+	unsigned char CRC;
+	memcpy(tmp, data, 10);
+
+	CRC = tmp[0];
+	for(int i = 1; i < 9; i++)
+	{
+		CRC ^= tmp[i];
+	}
+
+	if(tmp[9] != CRC)
+	{
+		return false;
+	}
+	return true;
+}
+
 int CommHelper::StripCMD(const char * data, int data_len)
 {
 	unsigned char cmdbuff[2];
 
 	if(10 != data_len)
+		return -1;
+
+	if(!CheckCRC(data, data_len))
 		return -1;
 
 	cmdbuff[0] = data[0];
@@ -157,7 +204,8 @@ int CommHelper::StripCMD(const char * data, int data_len)
 	}
 	else if((0xf5 == cmdbuff[0])&&(0xf5 == cmdbuff[1]))
 	{
-		return 5;
+		if(CheckGetPhotoData(data, data_len))
+			return 5;
 	}
 	else if((0xf6 == cmdbuff[0])&&(0xf6 == cmdbuff[1]))
 	{
@@ -184,8 +232,6 @@ int CommHelper::MsgProcess(const char * data, int data_len)
 		memcpy(realdata, (data+i*10), 10);
 		int cmd = StripCMD(realdata, 10);
 		//cmd：1-地图数据 2-规划数据 3-调试数据1 4-调试数据2 5-拍照指令 6-上位机状态查询指令
-
-
 		//debug communication data
 //		memset(Replybuffer, 0xFD, 16);
 //		Replybuffer[0] = 0xFA;
@@ -193,33 +239,52 @@ int CommHelper::MsgProcess(const char * data, int data_len)
 //		m_MainProgram->m_CommHelper.SendData((char*)Replybuffer, 16);
 
 		//begin to analyze data and assign to specific thread to deal with
+#ifdef DISPLAYCOMDATA
+		fprintf(stdout, "Com recevice(Hex) data :[%02X", realdata[0] & 0xff);
+		for (int i = 1; i < 10; i++)
+		{
+			fprintf(stdout, " %02X", realdata[i] & 0xff);
+		}
+		fprintf(stdout, "]\n");
+#endif
+
 		switch (cmd)
 		{
 			case 1:
 				//m_MainProgram->m_MapDealer.AddToRevMapDataQueue(realdata, 10);
 				m_MainProgram->m_MapDealer.UpdateMapDirectly(realdata);
-				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
+//				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
+				m_MainProgram->m_tcpClient.SendDataDirectly(realdata, 10);
 				break;
 			case 2:
 				memset(Replybuffer, 0xFD, 16);
 				Replybuffer[0] = 0xFA;
 				Replybuffer[1] = 0xFA;
 				m_MainProgram->m_CommHelper.SendData((char*)Replybuffer, 16);
-//				usleep(30000);
 				m_MainProgram->m_MapDealer.AddToRevPlanOrderQueue(realdata, 10);
-				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
+//				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
+				m_MainProgram->m_tcpClient.SendDataDirectly(realdata, 10);
 				break;
 			case 3:
-				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
+//				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
+				m_MainProgram->m_tcpClient.SendDataDirectly(realdata, 10);
 				break;
 			case 4:
-				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
+//				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
+				m_MainProgram->m_tcpClient.SendDataDirectly(realdata, 10);
 				break;
 			case 5:
+#ifdef DebugGetPhoto
+				fprintf(stdout, "GetPhoto data :[%02X", realdata[0] & 0xff);
+				for (int i = 1; i < 10; i++)
+				{
+					fprintf(stdout, " %02X", realdata[i] & 0xff);
+				}
+				fprintf(stdout, "]\n");
 				if(0x11 == realdata[7])
 				{
 					//Get a Photo
-					if(!m_MainProgram->m_ParameterAdjuster.GetPhoto(realdata[4], realdata[5]))
+					if(!m_MainProgram->m_ParameterAdjuster.GetPhoto(realdata[4], realdata[5], realdata[2]))
 					{
 						//failed to get photo
 						memset(Replybuffer, 0x00, 16);
@@ -235,7 +300,7 @@ int CommHelper::MsgProcess(const char * data, int data_len)
 				else
 				{
 					//Parameter Adjust
-					if(!m_MainProgram->m_ParameterAdjuster.GetTmpPhoto(realdata[4], realdata[5]))
+					if(!m_MainProgram->m_ParameterAdjuster.GetTmpPhoto(realdata[4], realdata[5], realdata[2]))
 					{
 						//failed to get photo
 						memset(Replybuffer, 0x00, 16);
@@ -249,12 +314,18 @@ int CommHelper::MsgProcess(const char * data, int data_len)
 					m_MainProgram->m_CommHelper.SendData((char*)Replybuffer, 16);
 					m_MainProgram->m_ParameterAdjuster.AddToAdjustQueue(realdata, 10);
 				}
+#endif
 				break;
 			case 6:
 				break;
 			case 7:
-				m_MainProgram->m_MapDealer.ClearMap();
-				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
+				if(!memcmp(ClearData, realdata, 10))
+				{
+					m_MainProgram->m_MapDealer.ClearMap();
+	//				m_MainProgram->m_tcpClient.AddToSendQueue(realdata, 10);
+					m_MainProgram->m_tcpClient.SendDataDirectly(realdata, 10);
+					m_MainProgram->m_ParameterAdjuster.ClearPhotoMap();
+				}
 				break;
 			default:
 				break;
@@ -377,13 +448,17 @@ void *CommHelper::CommReadThreadFunc(void * lparam)
 								usleep(1 * 1000);
 								break;
 							}
-							else
+							else if(Recieveindex < 10)
 							{
 								if((readcounter = read(inputfd, &RecieveBuffer[Recieveindex], 1)) > 0)
 								{
 									Recieveindex++;
 								//	usleep(1000);
 								}
+							}
+							else
+							{
+								break;
 							}
 						}
 					}

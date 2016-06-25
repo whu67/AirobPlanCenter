@@ -36,6 +36,8 @@ public:
 	~CommHelper();
 	struct termios tio;
 	char dev[15];
+	char ClearData[10];
+	char ErrorGetPhotoData[10];
 	unsigned char PhotoReply[16];
 	int fd;
 	int Speed ;
@@ -48,6 +50,8 @@ public:
 	int ExtractData(const char * data, int data_len);
 	int StripCMD(const char * data, int data_len);
 	int MsgProcess(const char * data, int data_len);
+	bool CheckGetPhotoData(const char * data, int data_len);
+	bool CheckCRC(const char * data, int data_len);
 
 private:
 	MainProgram * m_MainProgram; //引用

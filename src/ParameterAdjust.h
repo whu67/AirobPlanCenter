@@ -13,6 +13,7 @@
 #include <pthread.h>
 #include "CommHelper.h"
 #include "unit.h"
+#include <fstream>
 
 
 struct AdjustData
@@ -53,9 +54,9 @@ public:
 	bool init();
 
 	void ClearPhotoMap();
-	bool GetTmpPhoto(unsigned char Xindex, unsigned char Yindex);
+	bool GetTmpPhoto(unsigned char Xindex, unsigned char Yindex, unsigned char position);
 	void RemoveFirstPhoto();
-	bool GetPhoto(unsigned char Xindex, unsigned char Yindex);
+	bool GetPhoto(unsigned char Xindex, unsigned char Yindex, unsigned char position);
 	void GetPhotoFromMap();
 
 	void AddToAdjustQueue(const char * data, int data_len, int priority = 10);
@@ -65,10 +66,11 @@ public:
 	float maxError;// = 0.06f;
 
 	int Adjustcount;
+
 private:
 	MainProgram* m_MainProgram;
 	CommHelper* m_CommHelperPtr;
-
+	std::ofstream ResultOutStr;
 	std::priority_queue<AdjustData> RevAdjustDataQueue;
 
 private:

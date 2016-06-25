@@ -50,7 +50,7 @@ struct MapData
 		}
 		data_len = 0;
 	}
-	unsigned char tmp[MAX_MAP_GRID][MAX_MAP_GRID];
+	unsigned char *tmp;//[MAX_MAP_GRID][MAX_MAP_GRID];
 };
 
 class MainProgram;

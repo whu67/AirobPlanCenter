@@ -7,6 +7,8 @@
 #include "main.h"
 #include "TCPClient.h"
 
+//#define DISPLAYTCPDATA
+
 #ifdef _DEBUG
 #undef THIS_FILE
 static char THIS_FILE[]=__FILE__;
@@ -517,6 +519,51 @@ bool TCPClient::SendData(const char * buf, int len)
 		fprintf(stdout, " %02X", buf[i] & 0xff);
 	}
 	fprintf(stdout, "]\n");
-	fprintf(stdout, "Tcp Send(Str):[%s]\n", buf);
+//	fprintf(stdout, "Tcp Send(Str):[%s]\n", buf);
+	return true;
+}
+
+bool TCPClient::SendDataDirectly(const char * buf, int len)
+{
+	if (!ConnectionStatus)
+	{
+		fprintf(stdout, "Tcp Send Directly Fail!\n");
+		return false;
+	}
+
+	int nBytes = 0;
+	int nSendBytes = 0;
+
+	while (nSendBytes < len)
+	{
+		nBytes = send(m_socket, buf + nSendBytes, len - nSendBytes,
+				MSG_NOSIGNAL);
+		if (nBytes == -1)
+		{
+
+			fprintf(stdout, "Tcp Send Directly Fail!\n");
+			return false;
+		}
+
+		nSendBytes = nSendBytes + nBytes;
+
+		if (nSendBytes < len)
+		{
+			usleep(10 * 1000);
+			continue;
+		}
+	}
+
+#ifdef DISPLAYTCPDATA
+	fprintf(stdout, "TCP Send(Hex) Directly :[%02X", buf[0] & 0xff);
+	for (int i = 1; i < len; i++)
+	{
+		fprintf(stdout, " %02X", buf[i] & 0xff);
+	}
+	fprintf(stdout, "]\n");
+#endif
+//	fprintf(stdout, "Tcp Send(Str):[%s]\n", buf);
+
+	delete (buf);
 	return true;
 }

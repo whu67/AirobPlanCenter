@@ -6,6 +6,7 @@
  */
 #include "ParameterAdjust.h"
 
+
 #include <queue>
 #include <set>
 #include <map>
@@ -22,15 +23,21 @@
 #include "opencv2/nonfree/features2d.hpp"
 #include "opencv2/nonfree/nonfree.hpp"
 #include <math.h>
+#include <sys/time.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "EstRXY.h"
 using namespace cv;
 
 //#define DEBUGPHOTO
-#define DEBUGSAVE
+//#define DEBUGSAVE
+#define DEBUGPHOTOSAVE
+
+#define USETENCENT
+//#define USESCUT
 
 CvCapture* capture;
-float maxError = 0.06f;
+float maxError = 0.11f;
 std::map<int, Mat> PhotoMap;
 std::map<int, Mat> PhotoAdjustMap;
 
@@ -52,6 +59,23 @@ int ParameterAdjust::open(CommHelper* lp)
 {
 //	m_MainProgram = lp;
 	m_CommHelperPtr = lp;
+
+	pthread_attr_t child_thread_attr;
+	if (0 != pthread_attr_init(&child_thread_attr))
+		printf("Adjust pthread_attr_init failed\n");
+
+	if (0 != pthread_attr_setdetachstate(&child_thread_attr,
+			PTHREAD_CREATE_DETACHED)) {//此处设置成分离线程内存，一旦线程结束，立刻回收内存
+		perror("Adjust pthread_attr_setdetachstate failed");
+		return -1;
+	}
+
+	int result = pthread_create(&m_AdjustThreadHandle, &child_thread_attr,
+			ParameterAdjustThreadFunc, (void*) this);
+	if (result == -1) {
+		printf("Adjust work pthread create failed\n");
+	}
+	fprintf(stdout, "Create ParameterAdjustThreadFunc thread successfully!\n");
 	return 1;
 }
 
@@ -60,6 +84,7 @@ bool ParameterAdjust::init()
 	PhotoMap.clear();
 	PhotoAdjustMap.clear();
 	maxError = 0.06f;
+	ResultOutStr.open("/home/fa/Photo/result.out", ios::out|ios::trunc);
 
 //	capture = cvCreateCameraCapture(CV_CAP_ANY);
 //	if(NULL == capture)
@@ -93,7 +118,7 @@ void ParameterAdjust::AddToAdjustQueue(const char* data, int data_len, int prior
 	return;
 }
 
-bool ParameterAdjust::GetTmpPhoto(unsigned char Xindex, unsigned char Yindex)
+bool ParameterAdjust::GetTmpPhoto(unsigned char Xindex, unsigned char Yindex, unsigned char position)
 {
 	capture = cvCreateCameraCapture(CV_CAP_ANY);
 	if(NULL == capture)
@@ -108,6 +133,7 @@ bool ParameterAdjust::GetTmpPhoto(unsigned char Xindex, unsigned char Yindex)
 	{
 		//return failure of get photo to robot
 		fprintf(stdout, "Get adjusted photo failed!\n");
+		ResultOutStr<<"Get adjusted photo failed!"<<endl;
 		cvReleaseCapture(&capture);
 		return false;
 	}
@@ -126,20 +152,34 @@ bool ParameterAdjust::GetTmpPhoto(unsigned char Xindex, unsigned char Yindex)
 		fprintf(stdout, "SavePath is %s.\n", savename);
 #endif
 		Mat img(frame,true);
+		cvtColor(img, img, CV_BGR2GRAY);//change mat to gray
+		int pos = position;
 		int x = Xindex;
 		int y = Yindex;
 		char indexbuffer[10];
 		int index;
-		sprintf(indexbuffer, "%d%d", x, y);
+		sprintf(indexbuffer, "%d%d%d", pos, x, y);
 		index = atoi(indexbuffer);
-		fprintf(stdout, "Adjust photo index is %d.\n", index);
+		int xyindex;
+		sprintf(indexbuffer, "%d%d", x, y);
+		xyindex = atoi(indexbuffer);
+		fprintf(stdout, "Adjust photo index is %d_%d.\n", pos, xyindex);
+		ResultOutStr<<"Adjust photo save in map,the index is : "<<dec<<index<<endl;
+//		ResultOutStr<<"Adjust photo save in map,the index is : "<<index<<endl;
 		PhotoAdjustMap.insert(std::pair<int, Mat>(index, img));
+#ifdef DEBUGPHOTOSAVE
+		char savename[50];
+		sprintf(savename, "//home//fa//Photo//%d_%d_a.jpg", pos, xyindex);
+		cvSaveImage(savename,frame);
+		fprintf(stdout, "Adjust photo SavePath is %s.\n", savename);
+#endif
 		cvReleaseCapture(&capture);
 	}
+	cvReleaseCapture(&capture);
 	return true;
 }
 
-bool ParameterAdjust::GetPhoto(unsigned char Xindex, unsigned char Yindex)
+bool ParameterAdjust::GetPhoto(unsigned char Xindex, unsigned char Yindex, unsigned char position)
 {
 	capture = cvCreateCameraCapture(CV_CAP_ANY);
 	if(NULL == capture)
@@ -156,6 +196,7 @@ bool ParameterAdjust::GetPhoto(unsigned char Xindex, unsigned char Yindex)
 	{
 		//return failure of get photo to robot
 		fprintf(stdout, "Get first photo failed!\n");
+		ResultOutStr<<"Get original photo failed!"<<endl;
 		cvReleaseCapture(&capture);
 		return false;
 	}
@@ -167,23 +208,38 @@ bool ParameterAdjust::GetPhoto(unsigned char Xindex, unsigned char Yindex)
 		return true;
 #endif
 #ifdef DEBUGSAVE
-		cvSaveImage("//home//fa//Photo//0.jpg",frame);
+		cvSaveImage("//home//fa//Photo//0_o.jpg",frame);
 #endif
 		Mat img(frame,true);
+		cvtColor(img, img, CV_BGR2GRAY);//change mat to gray
+		int pos = position;
 		int x = Xindex;
 		int y = Yindex;
 		char indexbuffer[10];
 		int index;
-		sprintf(indexbuffer, "%d%d", x, y);
+		sprintf(indexbuffer, "%d%d%d", pos, x, y);
 		index = atoi(indexbuffer);
-		fprintf(stdout, "photo index is %d.\n", index);
+		int xyindex;
+		sprintf(indexbuffer, "%d%d", x, y);
+		xyindex = atoi(indexbuffer);
+		fprintf(stdout, "Original photo index is %d_%d.\n", pos, xyindex);
+		ResultOutStr<<"Original photo save in map,the index is : "<<dec<<index<<endl;
+//		ResultOutStr<<"Original photo save in map,the index is : "<<index<<endl;
 		PhotoMap.insert(std::pair<int, Mat>(index, img));
+#ifdef DEBUGPHOTOSAVE
+		char savename[50];
+		sprintf(savename, "//home//fa//Photo//%d_%d_o.jpg", pos, xyindex);
+		cvSaveImage(savename,frame);
+		fprintf(stdout, "Original photo SavePath is %s.\n", savename);
+#endif
 		cvReleaseCapture(&capture);
 	}
+	cvReleaseCapture(&capture);
 	return true;
 }
 
-//--adjust code begin--//
+#ifdef USETENCENT
+//--adjust code begin by tencent--//
 void KeypointsToPoints(const std::vector<KeyPoint> &keyPoints, std::vector<Point2f> &points)
 {
 	for (int i = 0; i < keyPoints.size(); i++)
@@ -233,9 +289,15 @@ std::vector<float> CalBarycentric(const std::vector<Point2f> &points, Point2f tf
 	return w;
 }
 
+inline float Clamp(float v, float min, float max)
+{
+	v = v > min ? v : min;
+	v = v < max ? v : max;
+	return v;
+}
 
-cv::Point2f tCalRotationAndTranslation(const std::vector<KeyPoint> &object0, const std::vector<KeyPoint> &object1, const std::vector< DMatch > &matches,
-				  float &rotationAngle, float &dis)
+void tCalRotationAndTranslation(const std::vector<KeyPoint> &object0, const std::vector<KeyPoint> &object1, const std::vector< DMatch > &matches,
+				  float &rotationAngle, cv::Point2f &translation)
 {
 	std::vector<DMatch> copyMatches(matches);
 
@@ -259,7 +321,7 @@ cv::Point2f tCalRotationAndTranslation(const std::vector<KeyPoint> &object0, con
 		double cosTheta = d0.dot(d1);
 		double sinTheta = d0.cross(d1);
 
-		float tTheta = acos(cosTheta) / 3.1415926 * 180.0;
+		float tTheta = acos(Clamp(cosTheta,0.0f,1.0f)) / 3.1415926 * 180.0;
 		if (sinTheta < 0.0f)
 			tTheta = -tTheta;
 		thetaValue.push_back(tTheta);
@@ -275,9 +337,10 @@ cv::Point2f tCalRotationAndTranslation(const std::vector<KeyPoint> &object0, con
 	rotationAngle = sumTheta / thetaValue.size();
 
 	cv::Point2f centerPos(320, 180);
-	cv::Point2f translation;
 
 	int count = 0;
+	translation.x = 0.0f;
+	translation.y = 0.0f;
 	for (int i = 0; i < 3; i++)
 	{
 		if (copyMatches[i].distance > maxError)
@@ -301,8 +364,7 @@ cv::Point2f tCalRotationAndTranslation(const std::vector<KeyPoint> &object0, con
 
 	std::cout << "translation:  " << translation << std::endl;
 
-	dis = 0.0f;
-	return translation;
+//	return translation;
 }
 
 
@@ -390,9 +452,28 @@ void CalMatchesThroughMatcher(const Mat &img1, const Mat &img2,
 	surfDesc.compute(img2, right_keypoints, descriptros2);
 
 	BruteForceMatcher<L2<float> > testMatcher;
+
+	BFMatcher newMatcher(NORM_L2, false);
+	/*
 	testMatcher.match(descriptros1, descriptros2, matches);
-	std::nth_element(matches.begin(), matches.begin() + 8, matches.end());
-	matches.erase(matches.begin() + 9, matches.end());
+	if(matches.size()>9)
+	{
+		std::nth_element(matches.begin(), matches.begin() + 8, matches.end());
+		matches.erase(matches.begin() + 9, matches.end());
+	}
+	*/
+	std::vector<vector<DMatch> > knnMatches;
+	const int k = 2;
+	const float minRatio = 1.f / 2.5f;
+	newMatcher.knnMatch(descriptros1, descriptros2, knnMatches, k);
+	for (size_t i = 0; i < knnMatches.size(); i++) {
+		const DMatch& bestMatch = knnMatches[i][0];
+		const DMatch& betterMatch = knnMatches[i][1];
+
+		float  distanceRatio = bestMatch.distance / betterMatch.distance;
+		if (distanceRatio < minRatio)
+			matches.push_back(bestMatch);
+	}
 }
 
 void GetBestMatches(const std::vector<DMatch> &matches1,const std::vector<DMatch> &matches2 ,std::vector<DMatch> &bestMatch)
@@ -410,6 +491,7 @@ void GetBestMatches(const std::vector<DMatch> &matches1,const std::vector<DMatch
 	}
 }
 //--adjust code end--//
+#endif
 
 void ParameterAdjust::RemoveFirstPhoto()
 {
@@ -424,16 +506,34 @@ void ParameterAdjust::RemoveFirstPhoto()
 
 int ParameterAdjust::AdjustProcess(const AdjustData* msg)
 {
+	struct timeval tpstart,tpend;
+	float timeuse;
+	unsigned char Replybuffer[16];
+	bool Sendtag = true;
+	memset(Replybuffer, 0x00, 16);
+	Replybuffer[0] = 0xF5;
+	Replybuffer[1] = 0xF5;
+	gettimeofday(&tpstart, NULL);
+
 	Mat OrignalImg;
 	Mat AdjustImg;
 
+	float rotation = (int)msg->data[3];
+	int pos = msg->data[2];
 	int x = msg->data[4];
 	int y = msg->data[5];
 	char indexbuffer[10];
 	int index;
-	sprintf(indexbuffer, "%d%d", x, y);
+	sprintf(indexbuffer, "%d%d%d", pos, x, y);
 	index = atoi(indexbuffer);
+	ResultOutStr<<"Receive GetPhot Data : [ ";
+	for(int i = 0; i < 10; i++)
+	{
+		ResultOutStr<<hex<<(int)(msg->data[i])<<" ";
+	}
+	ResultOutStr<<"]"<<endl;
 
+	ResultOutStr<<"adjust orignal picture is "<<dec<<index<<"_o.jpg fix picture is "<<dec<<index<<"_a.jpg, result is :"<<endl;
 	std::map<int, Mat>::iterator iter;
 	iter = PhotoMap.find(index);
 	if(iter != PhotoMap.end())
@@ -444,6 +544,12 @@ int ParameterAdjust::AdjustProcess(const AdjustData* msg)
 	{
 		//error : can not find orginal mat
 		fprintf(stdout, "error : can not find orginal mat of index : %d .\n", index);
+		ResultOutStr<<"error : can not find orginal mat"<<endl;
+		gettimeofday(&tpend, NULL);
+		timeuse = 1000000*(tpend.tv_sec-tpstart.tv_sec)+tpend.tv_usec-tpstart.tv_usec;
+		timeuse /= 1000000;
+		fprintf(stdout, "Adjust used time is :%f seconds\n", timeuse);
+		m_CommHelperPtr->SendData((char*)Replybuffer, 16);
 		return 0;
 	}
 
@@ -457,16 +563,52 @@ int ParameterAdjust::AdjustProcess(const AdjustData* msg)
 	{
 		//error : can not find adjust mat
 		fprintf(stdout, "error : can not find adjust mat of index : %d .\n", index);
+		ResultOutStr<<"error : can not find adjust mat"<<endl;
+		gettimeofday(&tpend, NULL);
+		timeuse = 1000000*(tpend.tv_sec-tpstart.tv_sec)+tpend.tv_usec-tpstart.tv_usec;
+		timeuse /= 1000000;
+		fprintf(stdout, "Adjust used time is :%f seconds\n", timeuse);
+		m_CommHelperPtr->SendData((char*)Replybuffer, 16);
 		return 0;
 	}
 
+	ResultOutStr<<"Real rotation is : "<<dec<<rotation/10<<endl;
+	//Adjust by scut
+#ifdef USESCUT
+	Mat img1_orin = OrignalImg;//imread(".\\topS\\Segment Fault1\\0.jpg", CV_LOAD_IMAGE_GRAYSCALE);
+	Mat img2_orin = AdjustImg;//imread(".\\topS\\Segment Fault1\\1.jpg", CV_LOAD_IMAGE_GRAYSCALE);
+	EstRXY e(img1_orin.cols, img1_orin.rows);
+	double r;
+	Point2f result;
+	float angle ,dis;
+	fprintf(stdout, "run into scut adjust code \n!");
+	if (e.estRXYVector(img1_orin, img2_orin, r, result))
+	{
+		fprintf(stdout, "\nrotation:%lf\n", r);
+		fprintf(stdout, "(x,y): (%f, %f)\n", result.x, result.y);
+		ResultOutStr<<"rotation:"<<(float)r<<" (x,y):"<<result.x<<" , "<<result.y<<endl;
+	}
+	else
+	{
+		perror("\nFalse detection.\n");
+		Sendtag = false;
+		ResultOutStr<<"False detection."<<endl;
+	}
+	fprintf(stdout, "run out scut adjust code \n!");
+	//Adjust end
+#endif
+
+#ifdef USETENCENT
+//--Adjust by Tencent--//
 	Mat img1 = OrignalImg;
 	Mat img2 = AdjustImg;
+	cv::Point2f result;
+	float angle ,dis;
 	resize(OrignalImg, img1, Size(640, 360), 0, 0, CV_INTER_LINEAR);
 	resize(AdjustImg, img2, Size(640, 360), 0, 0, CV_INTER_LINEAR);
 
 	fprintf(stdout, "begin to get adjust parameter\n");
-	int minHessian = 60;
+	int minHessian = 100;
 	SurfFeatureDetector detector(minHessian);
 
 	std::vector<KeyPoint> left_keypoints, right_keypoints;
@@ -475,11 +617,9 @@ int ParameterAdjust::AdjustProcess(const AdjustData* msg)
 	detector.detect(img2, right_keypoints);
 
 	std::vector<DMatch> matches1,matches2;
-	//CalMatchesThroughOpticalFlk(img1, img2, left_keypoints, right_keypoints, matches);
 
 	CalMatchesThroughMatcher(img1, img2, left_keypoints, right_keypoints, matches);
 
-	//GetBestMatches(matches1, matches2, matches);
 	std::vector<Point2f> imgpts1, imgpts2;
 	for (unsigned int i = 0; i < matches.size(); i++)
 	{
@@ -509,73 +649,99 @@ int ParameterAdjust::AdjustProcess(const AdjustData* msg)
 	{
 		bestMatches = matches;
 	}
-	std::sort(bestMatches.begin(), bestMatches.end());
 
-	if (max(bestMatches[0].distance , bestMatches[1].distance) >= maxError)
+	if (bestMatches.size() == 0)
 	{
-		fprintf(stdout, "Can't get a goodResult!");
+		std::cout << "Can't get a goodResult!" << std::endl;
+		ResultOutStr<<"Can't get a goodResult!"<<endl;
+		Sendtag = false;
 	}
 	else
 	{
-		fprintf(stdout, "Get a pretty good result!");
+		std::sort(bestMatches.begin(), bestMatches.end());
+		if (std::max(bestMatches[0].distance , bestMatches[1].distance) >= maxError)
+		{
+			fprintf(stdout, "Can't get a goodResult!");
+			ResultOutStr<<"Can't get a goodResult!"<<endl;
+			Sendtag = false;
+		}
+		else
+		{
+			fprintf(stdout, "Get a pretty good result!");
+			ResultOutStr<<"Get a pretty good result!"<<endl;
+			tCalRotationAndTranslation(left_keypoints, right_keypoints, bestMatches, angle, result);
+			fprintf(stdout, "rotation angle is %f\n", angle);
+			ResultOutStr<<"rotation angle is "<<angle<<endl;
+		}
 	}
-	float angle ,dis;
 
-	cv::Point2f result = tCalRotationAndTranslation(left_keypoints, right_keypoints, bestMatches, angle, dis);
-	fprintf(stdout, "rotation angle is %f\n", angle);
 	fprintf(stdout, "end to get adjust parameter\n");
+//--end of tencent--//
+#endif
 
 	//--send adjust data--//
-	int sendangle;
-	int sendx;
-	int sendy;
-	unsigned char* AdjustSendBuffer = new unsigned char[16];
-	memset(AdjustSendBuffer, 0x00, 16);
-	AdjustSendBuffer[0] = 0xFE;
-	AdjustSendBuffer[1] = 0xFE;
-
-	if(angle<0);
-		angle += 360;
-
-	sendangle = (int)(angle*10);
-	AdjustSendBuffer[2] = sendangle/256;
-	AdjustSendBuffer[3] = sendangle%256;
-
-	if(result.x<0)
+	if(Sendtag)
 	{
-		AdjustSendBuffer[5] = 0x01;
-		sendx = result.x*(-10);
+		int sendangle;
+		int sendx;
+		int sendy;
+		unsigned char* AdjustSendBuffer = new unsigned char[16];
+		memset(AdjustSendBuffer, 0x00, 16);
+		AdjustSendBuffer[0] = 0xFE;
+		AdjustSendBuffer[1] = 0xFE;
+
+		if(angle<0);
+			angle += 360;
+
+		sendangle = (int)(angle*10);
+		AdjustSendBuffer[2] = sendangle/256;
+		AdjustSendBuffer[3] = sendangle%256;
+
+		if(result.x<0)
+		{
+			AdjustSendBuffer[5] = 0x01;
+			sendx = result.x*(-10);
+		}
+		else
+		{
+			sendx = result.x*10;
+		}
+		AdjustSendBuffer[6] = sendx/256;
+		AdjustSendBuffer[7] = sendx%256;
+
+		if(result.y<0)
+		{
+			AdjustSendBuffer[8] = 0x01;
+			sendy = result.y*(-10);
+		}
+		else
+		{
+			sendy = result.y*10;
+		}
+		AdjustSendBuffer[9] = sendy/256;
+		AdjustSendBuffer[10] = sendy%256;
+
+		unsigned char CRC = AdjustSendBuffer[0];
+		for(int i = 1; i < 15; i++)
+		{
+			CRC = CRC ^ AdjustSendBuffer[i];
+		}
+		AdjustSendBuffer[15] = CRC;
+		m_CommHelperPtr->SendData((char*)AdjustSendBuffer, 16);
 	}
 	else
 	{
-		sendx = result.x*10;
+//Can not adjust, Send bad result by serial
+		m_CommHelperPtr->SendData((char*)Replybuffer, 16);
 	}
-	AdjustSendBuffer[6] = sendx/256;
-	AdjustSendBuffer[7] = sendx%256;
-
-	if(result.y<0)
-	{
-		AdjustSendBuffer[8] = 0x01;
-		sendy = result.y*(-10);
-	}
-	else
-	{
-		sendy = result.y*10;
-	}
-	AdjustSendBuffer[9] = sendy/256;
-	AdjustSendBuffer[10] = sendy%256;
-
-	unsigned char CRC = AdjustSendBuffer[0];
-	for(int i = 1; i < 15; i++)
-	{
-		CRC = CRC ^ AdjustSendBuffer[i];
-	}
-	AdjustSendBuffer[15] = CRC;
-	m_CommHelperPtr->SendData((char*)AdjustSendBuffer, 16);
 //	m_MainProgram->m_CommHelper.SendData((char*)AdjustSendBuffer, 16);
 
 	//--end send data--//
-
+	gettimeofday(&tpend, NULL);
+	timeuse = 1000000*(tpend.tv_sec-tpstart.tv_sec)+tpend.tv_usec-tpstart.tv_usec;
+	timeuse /= 1000000;
+	fprintf(stdout, "Adjust used time is :%f seconds\n", timeuse);
+	ResultOutStr<<"Adjust used time is : "<<timeuse<<" seconds ,END of Adjust"<<endl<<endl;
 	return 1;
 }
 
@@ -600,7 +766,6 @@ void *ParameterAdjust::ParameterAdjustThreadFunc(void * lparam)
 			while (!pAdjust->RevAdjustDataQueue.empty())
 			{
 				pthread_mutex_lock(&pAdjust->RevAdjustOrderQueuemutex);
-
 				pAdjust->AdjustProcess(&pAdjust->RevAdjustDataQueue.top());
 				if (pAdjust->RevAdjustDataQueue.top().data != NULL)
 				{
@@ -625,5 +790,6 @@ bool ParameterAdjust::CreateAdjustThread()
 		fprintf(stdout, "Create ParameterAdjustThreadFunc thread error!\n");
 		return false;
 	}
+	fprintf(stdout, "Create ParameterAdjustThreadFunc thread successfully!\n");
 	return true;
 }
